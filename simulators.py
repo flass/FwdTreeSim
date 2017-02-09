@@ -10,13 +10,31 @@ __credits__ = """Leonor Palmeira and Laurent Guéguen for initiating the tree2.N
 import os
 import copy
 import random
-from tree2.FwdTreeSim import models, nodelabelprefix, loadpickle, dumppickle
+from FwdTreeSim import models, nodelabelprefix, IOsimul
 import tree2
+
+### utilitary functions
+
+def _connecttrees(trees, l=0, returnCopy=False):
+	"""create a common root for all trees in the given list, with branches of lenght l."""
+	treeroot = trees[0].newnode()
+	for tree in trees:
+		if returnCopy: t = copy.deepcopy(tree.go_root())
+		else: t = tree.go_root()
+		treeroot.link_child(t, newlen=tree.lg()+l)
+	return treeroot
+
+# for dumppickle() funciton; special case of simulators.BaseTreeSimulator class
+dumpwarningmsg =  "cannot pickle generator objects, have to delete event id generator 'self.eventidgen' first\n"
+dumpwarningmsg += "(will discontinue numeration of events for further simulation).\n"
+dumpwarningmsg += "Delete generator before pickling? (y/n) "
+checkdic = {'simulators.BaseTreeSimulator':{'attrname':'eventidgen', 'prompt':dumpwarningmsg}}
 
 ######################################
 # Tree Simulators
 # wrappers for the simulation models; perfom the simulation from t0 to the end
 ######################################
+
 
 class BaseTreeSimulator(object):
 	"""
@@ -28,7 +46,7 @@ class BaseTreeSimulator(object):
 	or self.trees             uses the tree provided through 'starttree' argument or (default) a single-node tree (set) as a seed for the simulation.
 	- self.t               : the number of the last simulation iteration / time slice.
 	
-	Attributes than can be provided at instance intitiation through kyword arguments
+	Attributes than can be provided at instance intitiation through keyword arguments (e.g. to resume previous simulation)
 	- self.times           : list of evolutionary time spent within each time slice.
 	- self.extincts        : list of leaf nodes representing lineages considered extinct.
 	- self.eventsrecord    : record events by time slice where they occurred;
@@ -57,6 +75,9 @@ class BaseTreeSimulator(object):
 		self.nodeClass = kwargs.get('nodeClass', tree2.Node)
 		self.ngen = kwargs.get('ngen')
 		self.eventidgen = models.eventIdGen()	# generator object providing serial unique identifiers for event objects
+		self.dumppickle_warning = '\n'.join(["Cannot pickle generator objects; to pickle simulator object instance %s,"%repr(self), \
+											"you have to first delete its event id generator attribute 'eventidgen'", \
+											"(will discontinue numeration of events for further simulation)."])
 		
 	def __getattr__(self, name):
 		if name=='__dict__': return self.__dict__
@@ -89,37 +110,21 @@ class BaseTreeSimulator(object):
 		return ts
 		
 	@staticmethod
-	def prune_dead_lineages(tree, extincts):
+	def copy_prune_dead_lineages(tree, extincts, trimroot=False):
+		"""require unique naming of all nodes!!!"""
 		livetree = copy.deepcopy(tree)
+		lleaves = livetree.get_leaf_labels()
 		for leaf in extincts:
-			livetree.pop(leaf.label())
-		# set root branch lenght to zero
-		livetree.set_lg(0)	
+			if leaf.label() in lleaves:
+				if len(lleaves)==1:
+					# last leaf to stand on the tree, cannot pop it ; rather return null result
+					return None
+				livetree.pop(leaf.label())
+				lleaves.remove(leaf.label())
+		if trimroot:
+			# set root branch lenght to zero
+			livetree.set_lg(0)
 		return livetree
-		
-	############################
-	## miscealaneous methods
-		
-	def dumppickle(self, fileorpath, autoclosefile=True):
-		# cannot pickle generator objects, have to delete it
-		if 'eventidgen' in self.__dict___:
-			prompt =  "cannot pickle generator objects, have to delete event id generator 'self.eventidgen' first\n"
-			prompt += "(will discontinue numeration of events for further simulation).\n"
-			prompt += "Delete generator and pickle? (y/n) "
-			doit = raw_input(prompt)
-			while not (doit in ['y', 'n']):
-				print "answer 'y' (for yes) or 'n' (for no)"
-				doit = raw_input(prompt)
-			if doit=='y':
-				del self.eventidgen
-				dumppickle(self, fileorpath, autoclosefile=autoclosefile)
-			else:
-				print "DID NOT save %s object"%repr(self)
-		else:
-			dumppickle(self, fileorpath, autoclosefile=autoclosefile)
-			
-	# loaddpickle directly inherited from FwdTreeSim through import; can be called either as FwdTreeSim.loaddpickle() or [FwdTreeSim.]simulators.loaddpickle()
-
 
 ################################################
 # Classes describing how wether a single or many
@@ -163,6 +168,10 @@ class SingleTreeSimulator(BaseTreeSimulator):
 			self.t += 1
 			levents, devents, contempbranches, brlen = self.model.stepforward(self, allowdeath=(self.t not in nodeathspan), evtidgen=evtidgen)
 			# record what happened
+			#~ for evt in levents:
+				#~ # record the extinction events
+				#~ if evt.extinction:
+					#~ self.extincts.append(evt.treenode)
 			self.eventsrecord.append(levents)
 			self.eventsmap.update(devents)
 			self.contempbranches.append(contempbranches)
@@ -231,7 +240,7 @@ class SingleTreeSimulator(BaseTreeSimulator):
 		if not compute: return self._extanttree
 		# only works with all nodes being labelled, to use labels as references rather than the node objects (which refer to the original tree)
 		self.labeltreenodes()
-		livetree = self.prune_dead_lineages(self.tree, self.extincts)
+		livetree = self.copy_prune_dead_lineages(self.tree, self.extincts)
 		self._extanttree = livetree	# create or update cache attribute
 		return livetree
 				
@@ -248,8 +257,9 @@ class MultipleTreeSimulator(BaseTreeSimulator):
 		print 'invoke _MultipleTreeSimulator__init__'
 		print 'kwargs:', kwargs
 		super(MultipleTreeSimulator, self).__init__(model=model, **kwargs)
-		self.popsize = kwargs.get('popsize', 100)
+		self.popsize = self.model.popsize
 		self.trees = [self.nodeClass(l=float(0), lab="Root_%d"%i) for i in range(self.popsize)]
+		self.profile = kwargs.get('profile', IOsimul.SimulProfile())
 		
 		if not kwargs.get('noTrigger'):
 			self.checkdata()
@@ -285,13 +295,25 @@ class MultipleTreeSimulator(BaseTreeSimulator):
 		if isinstance(self.model, models.MoranProcess): assert len(extants) == self.popsize
 		return extants
 		
+	def update_rates(self):
+		"""update model according to the profile's rate schedule and the current time step"""
+		if self.t in self.profile.rateschedule:
+			# updates the rate attributes, e.g. 'rdup', 'rtrans', 'rloss'
+			self.model.update(self.profile.rateschedule[self.t])
+		
 	def evolve(self, ngen, verbose=False, nodeathspan=[], stopcondition=(lambda x: (None, None)), **kwargs):
 		"""simulation engine, iterates step of the simulation model"""
 		evtidgen = kwargs.get('evtidgen', self.eventidgen)
 		while self.t < ngen: 
 			self.t += 1
+			# check if need to update model at this time step
+			self.update_rates()
 			levents, devents, contempbranches, brlen = self.model.stepforward(self, allowdeath=(self.t not in nodeathspan), evtidgen=evtidgen)
 			# record what happened
+			#~ for evt in levents:
+				#~ # record the extinction events
+				#~ if evt.extinction:
+					#~ self.extincts.append(evt.treenode)
 			self.eventsrecord.append(levents)
 			self.eventsmap.update(devents)
 			self.contempbranches.append(contempbranches)
@@ -304,42 +326,53 @@ class MultipleTreeSimulator(BaseTreeSimulator):
 				rval = 0
 				break
 		else:
-			# destroys cache outdated attributes
+			# destroys outdated cache attributes
 			if hasattr(self, '_extanttrees'): self._extanttrees = None
 			rval = 0
 		# give labels to extant tips
 		for i, extant in enumerate(self.get_extants()): extant.edit_label("%s%d"%(nodelabelprefix['livetip'], i))
 		return rval
 		
-	def get_most_extant_tree(self):
-		"""choose the tree with most extant leaves for the focal output of simulation"""
-		pass
+	#~ def get_most_extant_tree(self):
+		#~ """choose the tree with most extant leaves for the focal output of simulation"""
+		#~ pass
 	
 	def verbevolve(self, devents):
 		print "\ntime:", self.t
 		
-	def get_extants(self, depthsorted=False):
-		# generate a single list of all extant leaves across all trees in  the currtees set
-		sleave = set(sum((tree.get_leaves() for tree in self.trees), []))
-		extants = list(sleave - set(self.extincts))
-		if depthsorted: extants.sort(key=lambda x: x.depth())
-		return extants
+	def connecttrees(self, l=0, returnCopy=False):
+		"""create a common root for all trees in the population, with branches of lenght l
 		
-	#############################
-	## result description methods
+		store the new single tree object in new attirbute 'treeroot'.
+		"""
+		treeroot = _connecttrees(self.trees, l=l, returnCopy=returnCopy)
+		if returnCopy:
+			return treeroot
+		else:
+			self.treeroot = treeroot
+	
+	################################	
+	## post-simulation tree grooming
+	
+	def labeltreenodes(self, dictprefix=nodelabelprefix, treesattrname='trees', onlyExtants=True, silent=True):
+		"""puts distinctive labes at internal nodes and extinct and extant leaves (default prefixes are N, E, S,respectively). Labelling follows increasing order from root"""
+		for t in getattr(self, treesattrname):
+			t.complete_internal_labels(prefix=dictprefix['livetip'], onlyLeaves=True, exclude=self.extincts, silent=silent)
+			if not onlyExtants:
+				t.complete_internal_labels(prefix=dictprefix['deadtip'], onlyLeaves=True, silent=silent)
+				t.complete_internal_labels(prefix=dictprefix['node'], excludeLeaves=True, silent=silent)
 			
-	def get_extanttrees(self, compute=True, use_copy=True):
-		"""returns phylogenetic tree 'cleaned' of its dead branches ; NB: original tree will have all its nodes labelled afterward"""
+	def get_extanttrees(self, compute=True, connecttrees=-1, addextincts=[]):
+		"""returns a COPY of the {list of | single root connecting} all trees 'cleaned' of their dead branches ; NB: original tree will have all its nodes labelled afterward"""
 		if not compute: return self._extanttrees
-		livetrees = []
-		if use_copy: trees = [t.deepcopybelow(keep_lg=True, add_ref_attr=True) for t in self.trees]
-		else: trees = self.trees
-		for tree in trees:
-			# only works with all nodes being labelled, to use labels as references rather than the node objects (which refer to the original tree) in Node.pop() 
-			self.labeltreenodes()
-			livetrees.append(self.prune_dead_lineages(tree, self.extincts))
-		self._extanttrees = livetrees	# create or update cache attribute
-		return livetrees
+		# only works with all nodes being labelled, to use labels as references rather than the node objects (which refer to the original tree) in Node.pop() 
+		self.labeltreenodes(silent=False) # should not be necessary though
+		extanttrees = [self.copy_prune_dead_lineages(t, self.extincts+addextincts, trimroot=False) for t in self.trees]
+		if connecttrees<0:
+			return extanttrees
+		else:
+			# exclude null trees (None objects) before connecting them
+			return _connecttrees([t for t in extanttrees if t], l=connecttrees, returnCopy=False)
 
 class DTLtreeSimulator(MultipleTreeSimulator):
 	"""Simulates gene trees from (species) reference trees under a DTL model (see Szollosi et al. 2013, Lateral Gene Transfer from the Dead, Systematic Biology 62(3):386–397)
@@ -352,30 +385,38 @@ class DTLtreeSimulator(MultipleTreeSimulator):
 	
 	As for parents classes, events are recorded in the 'eventsrecord' and 'eventsmap' attributes, storing events object indexed by time slice and reference tree node origin, respectively. 
 	For transfers, an additional dictionary attribute 'transferrec' record the event objects indexed by reference tree node destination.
+	
+	Profile of a gene family can be passed on with keywor argument 'profile', determining the root frequency of the gene in the population 
+	and the rates of evolution (edits the evolution model object), in a time-heterogeneous manner.
 	"""
-	def __init__(self, model, rootfreq=0.5, noTrigger=False, **kwargs):
+	def __init__(self, model, noTrigger=False, **kwargs):
 		print 'invoke _DTLtreeSimulator__init__'
 		print 'kwargs:', kwargs
-		super(MultipleTreeSimulator, self).__init__(model=model, noTrigger=True, **kwargs) 
+		super(DTLtreeSimulator, self).__init__(model=model, noTrigger=True, **kwargs) 
 		# automatic checkdata() and evolve(ngen) triggers from parent classses are deactivated by noTrigger=True
-		self.rootfreq = rootfreq # frequency a which the gene family is found at the root of each tree in the multiple reference tree set (species lineages from a Moran process)
+		#~ self.rootfreq = kwargs['rootfreq'] # frequency a which the gene family is found at the root of each tree in the multiple reference tree set (species lineages from a Moran process)
 		refsimul = kwargs.get('refsimul')
 		if refsimul:
+			self.refsimul = refsimul	# keep hard link to reference/species tree simulator object; better pickle them together!
+			self.refroot = getattr(refsimul, 'treeroot', None)
 			self.reftrees = refsimul.trees
 			self.refconbran = refsimul.contempbranches
 			self.reftimeslices = refsimul.get_timeslices()
+			self.refextincts = refsimul.extincts
 			self.ngen = refsimul.t - 1
 			self.times = refsimul.times
 		else:
 			self.reftrees = kwargs['reftrees']
-			self.refconbran = kwargs['contempbranches']
-			self.reftimeslices = kwargs['timeslices']
+			self.refconbran = kwargs['refcontempbranches']
+			self.reftimeslices = kwargs['reftimeslices']
+			self.refextincts = kwargs['refextincts']
 			self.times = kwargs['times']
 			self.ngen = kwargs.get('ngen')
+		self.profile = kwargs.get('profile', IOsimul.DTLSimulProfile(type='core'))
 			
 		# with a proba rootfreq, generate a gene tree for each reference tree;
 		# gene trees are like the reference tree set, with an addition of a link of each gene tree node to its reference tree node	
-		self.genetrees = [rt.deepcopybelow(keep_lg=True, add_ref_attr=True) for rt in self.reftrees if random.random()<self.rootfreq]
+		self.genetrees = [rt.deepcopybelow(keep_lg=True, add_ref_attr=True) for rt in self.reftrees if random.random()<self.profile.rootfreq]
 		self.eventsmap = {}
 		self.transferrec = {}
 		
@@ -396,14 +437,21 @@ class DTLtreeSimulator(MultipleTreeSimulator):
 		"""simulation engine, iterates step of the simulation model"""
 		evtidgen = kwargs.get('evtidgen', self.eventidgen)
 		while self.t < ngen:
+			# record time step advance
 			self.t += 1
+			# check if need to update model at this time step
+			self.update_rates()
 			print "t=%d"%self.t, 
 			timeslice = self.reftimeslices[self.t]
 			# get current bene tree branches
 			currbranches = self.get_current_branches((timeslice[1]+timeslice[0])/2) # input
 			#~ print ": currbranches", [cb.label() for cb in currbranches]
-			levents, devents, trec = self.model.stepforward(currbranches, self.refconbran[self.t], timeslice, t=self.t, evtidgen=evtidgen)
+			levents, devents, trec = self.model.stepforward(currbranches, self, evtidgen=evtidgen)
 			# record what happened
+			#~ for evt in levents:
+				#~ # record the extinction events
+				#~ if evt.extinction:
+					#~ self.extincts.append(evt.treenode)
 			self.contempbranches.append(currbranches)
 			self.eventsrecord.append(levents)
 			self.eventsmap.update(devents)
@@ -417,3 +465,64 @@ class DTLtreeSimulator(MultipleTreeSimulator):
 		else:
 			rval = 0
 		return rval
+
+		
+	def connecttrees(self, l=0, returnCopy=False):
+		"""create a common root for all gene trees in the population, with branches of lenght l
+		
+		store the new single tree object in new attirbute 'treeroot'.
+		gene tree-specific method ads the ref attibute to specie tree root.
+		"""		
+		treeroot = self.genetrees[0].newnode()
+		for genetree in self.genetrees:
+			if returnCopy: t = copy.deepcopy(genetree.go_root())
+			else: t = genetree.go_root()
+			treeroot.link_child(t, newlen=l)
+		if returnCopy:
+			return treeroot
+		else:
+			self.treeroot = treeroot
+			self.treeroot.ref = self.refroot
+		
+	def labeltreenodes(self, dictprefix=nodelabelprefix, onlyExtants=True, silent=True):
+		super(DTLtreeSimulator, self).labeltreenodes(dictprefix=dictprefix, treesattrname='genetrees', onlyExtants=onlyExtants, silent=silent)
+
+	def copy_prune_dead_lineages(self, tree, trimroot=False):
+		"""require unique naming of all nodes!!!"""
+		if not tree: return None
+		livetree = livetree = copy.deepcopy(tree)
+		lleaves = livetree.get_leaf_labels()
+		drefleaves = {}
+		for leaf in livetree.get_leaves():
+			#~ drefleaves.setdefault(leaf.ref.label(), []).append(leaf.label())
+			# take only the first component of leaf label to collect the leaves in extinct species
+			# that descend from a transfered/duplicated lineage AND APPARENTLY HAVE LOST REFERENCE TO OWNER SPECIES
+			### DIRTY WORKAROUND, HAVE TO FIX THE LOSS OF REFERENCE !!!!!
+			drefleaves.setdefault(leaf.ref.label().split('-')[0], []).append(leaf.label())
+		for extref in self.refextincts:
+			if extref.label() in drefleaves:
+				for leaflab in drefleaves[extref.label()]:
+					if len(lleaves)==1:
+						# last leaf to stand on the tree, cannot pop it ; rather return null result
+						return None
+					livetree.pop(leaflab)
+					lleaves.remove(leaflab)
+		if trimroot:
+			# set root branch lenght to zero
+			livetree.set_lg(0)
+		return livetree
+		
+	def get_extanttrees(self, compute=True, connecttrees=-1, addextincts=[]):
+		"""returns a COPY of the {list of | single root connecting} all trees 'cleaned' of their dead branches ; NB: original tree will have all its nodes labelled afterward"""
+		if not compute: return self._extanttrees
+		# only works with all nodes being labelled, to use labels as references rather than the node objects (which refer to the original tree) in Node.pop() 
+		self.labeltreenodes(silent=False) # should not be necessary though
+		# first remove lineages associated to gene loss
+		nolosstrees = [BaseTreeSimulator.copy_prune_dead_lineages(t, self.extincts, trimroot=False) for t in self.genetrees]
+		# and second remove lineages associated to extinct species
+		extanttrees = [self.copy_prune_dead_lineages(t, trimroot=False) for t in nolosstrees]
+		if connecttrees<0:
+			return extanttrees
+		else:
+			# exclude null trees (None objects) before connecting them
+			return _connecttrees([t for t in extanttrees if t], l=connecttrees, returnCopy=False)

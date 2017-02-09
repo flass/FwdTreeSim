@@ -12,7 +12,7 @@ import cPickle as pickle
 #~ import pickle
 import random
 import json
-from FwdTreeSim import deleteGenneratorAttr, _byteify
+from FwdTreeSim import checkDeleteGenneratorAttr, _byteify
 #~ import FwdTreeSim.simulators as simulators
 import tree2
 
@@ -30,44 +30,30 @@ def loadpickle(fileorpath, autoclosefile=True):
 	obj = pickle.load(fpickle)
 	if autoclosefile: fpickle.close()
 	return obj
-		
-# for dumppickle() funciton; special case of simulators.BaseTreeSimulator class
-simuldumpprompt =  "cannot pickle generator objects, have to delete event id generator 'self.eventidgen' first\n"
-simuldumpprompt += "(will discontinue numeration of events for further simulation).\n"
-simuldumpprompt += "Delete generator before pickling? (y/n) "
-checkdic = {'simulators.BaseTreeSimulator':{'attrname':'eventidgen', 'prompt':simuldumpprompt}}
-		
-def dumppickle(obj, fileorpath, autoclosefile=True, prompt=False):
-	def checkObj(obj):
-		for cls in checkdic:
-			if isinstance(obj, eval(cls)):
-				checkDeleteGenneratorAttr(obj, attrname=checkdic[cls]['attrname'], prompt=(checkdic[cls]['prompt'] if prompt else False))
-		
+
+def dumppickle(obj, fileorpath, autoclosefile=True, prompt=False, silent=True):
 	if type(fileorpath)==str and os.path.exists(os.path.dirname(fileorpath)):
 		fpickle = open(fileorpath, 'w')
-		fpathstr = " in file '%s'"%fileorpath
+		fpathstr = fileorpath
 	elif isinstance(fileorpath, file):
 		if not os.access(os.W_OK):
 			raise ValueError, "argument file object is not writeable"
 		else:
 			fpickle = fileorpath
-		fpathstr = ""
+		fpathstr = repr(fileorpath)
 	else:
 		raise ValueError, "argument should be a file path or file-like object; '%s' is not"%(repr(fileorpath))
-	
-	# check that objects don't have annoying abjects (e.g. generators) to delete bfore pickling
-	if isinstance(obj, list):
-		for subobj in obj:
-			checkObj(obj)
-	elif isinstance(obj, dict):
-		for subobj in obj.values():
-			checkObj(obj)
+	# cannot pickle generator objects, have to delete them first from the object attributes
+	if not silent:
+		dumpwarningmsg = getattr(obj, 'dumppickle_warning', None)
+		if dumpwarningmsg: print dumpwarningmsg
+	if checkDeleteGenneratorAttr(obj, prompt=prompt) < 1:
+		# no generator to delete or deletion was performed
+		pickle.dump(obj, file=fpickle, protocol=2)
+		if not silent: print "saved %s in binary format in file '%s'"%(repr(obj), fpathstr)
+		if autoclosefile: fpickle.close()
 	else:
-		checkObj(obj)
-			
-	pickle.dump(obj, file=fpickle, protocol=2)
-	print "saved %s in binary format"%repr(obj) + fpathstr
-	if autoclosefile: fpickle.close()
+		print "could not save object %s due to failure to delete its attribute generator object(s)"%repr(obj)
 
 			
 
@@ -179,10 +165,25 @@ class MetaSimulProfile(object):
 					print "use simulation profile: %s"%(repr(self.dprof[f]))
 				return self.dprof[f]
 			
-class SimLogger(object):
+class SimulLogger(object):
+	"""Generate dump files for building a database of  simulation models and scenarios and resulting trees and events."""
 	
-	def __init__(self, sim, fout):
-		self.sim = sim		# attached simulator object from which to get the output stream 
-		self.out = fout		# file-like object to write the log stream
+	def __init__(self, table2fields, bnfout="log_", mode='w'):
+		"""(create and) open connections to the output database dump file.
 		
+		'table2fields' argument is a dict with the desired database's table names as keys 
+		and a list of table fields as values.
+		"""
+		# collection of file-like objects to write the different log streams
+		self.foutdict = {}
+		for tablename in table2fields:
+			tabledump = open(bnfout+"%s.tsv"%tablename, mode)
+			# writes table header
+			tabledump.write('\t'.join(table2fields[tablename])+'\n')
+			# store file handle
+			self.foutdict[tablename] = tabledump
 		
+	def close(self):
+		"""close all file connections"""
+		for tabledump in self.foutdict.values():
+			tabledump.close()

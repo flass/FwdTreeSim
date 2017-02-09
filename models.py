@@ -11,6 +11,8 @@ __credits__ = """Leonor Palmeira and Laurent Guéguen for initiating the tree2.N
 import tree2
 import random
 from numpy.random import poisson, geometric, exponential, normal
+from FwdTreeSim import nodelabelprefix, IOsimul
+#~ nodelabelprefix = FwdTreeSim.nodelabelprefix
 
 import sys # for debug
 
@@ -20,7 +22,6 @@ def geometricm1(p, size=None):
 def normalp1(scale, size=None):
 	return normal(loc=1, scale=scale, size=size)
 
-nodelabelprefix = tree2.FwdTreeSim.nodelabelprefix
 # RGB components of colours
 eventcolcode = {'birth':[0,255,0], 'death':[0,0,255], 'loss':[127,127,127], 'transfer':[200,200,0], 'duplication':[255,0,0]}
 # eventcolcode = {'birth':'green', 'death':'blue', 'loss':'grey', 'transfer':'gold', 'duplication':'red'}
@@ -56,28 +57,13 @@ class SingleTreeModel(BaseModel):
 	def __init__(self, **kwargs):
 		print 'invoke _SingleTreeModel__init__'
 		super(SingleTreeModel, self).__init__(**kwargs)
-	
-	#~ @staticmethod
-	#~ def get_extants(currtree, extincts, depthsorted=False):
-		#~ sleave = set(currtree.get_leaves())
-		#~ extants = list(sleave - set(extincts))
-		#~ if depthsorted: extants.sort(key=lambda x: x.depth())
-		#~ return extants
 		
 class MultipleTreeModel(BaseModel):
 	
 	def __init__(self, **kwargs):
 		print 'invoke _MultipleTreeModel__init__'
 		super(MultipleTreeModel, self).__init__(**kwargs)
-	
-	#~ @staticmethod
-	#~ def get_extants(currtrees, extincts, depthsorted=False):
-		#~ # generate a single list of all extant leaves across all trees in  the currtees set
-		#~ sleave = set(sum((currtree.get_leaves() for currtree in currtrees), []))
-		#~ extants = list(sleave - set(extincts))
-		#~ if depthsorted: extants.sort(key=lambda x: x.depth())
-		#~ return extants
-		
+		self.popsize = kwargs.get('popsize', 100)
 
 class UniformDiscreetBirthDeathModel(SingleTreeModel):
 	"""Works with discreet time steps, where branches have to start and stop.
@@ -224,16 +210,13 @@ class BaseMoranProcess(BaseModel):
 
 	def __init__(self, **kwargs):
 		print 'invoke _BaseMoranProcess__init__'
+		print 'kwargs:', kwargs
 		super(BaseMoranProcess, self).__init__(**kwargs)
 		self.rate = kwargs.get('rate', 1)
-		self.popsize = kwargs.get('popsize', 100)
+		self.popsize = kwargs.get('popsize', 100) # redundant with MultipleTreeModel, but popsize is required even in the SingleTreeModel version
 		
 	def stepforward(self, simul, allowdeath=True, timeLabelledNodes=True, evtidgen=None, **kwargs):
-		"""Implement the atomic step of simulation iteration. 'extincts' is a list of leaf nodes in the tree
-		
-		'currtrees' argument can be either a single tree object when used within a PartialMoranProcess class instance, 
-		or a list of tree objects when used within a  MoranProcess class instance.
-		"""
+		"""Implement the atomic step of simulation iteration. 'extincts' is a list of leaf nodes in the tree."""
 		# NB: assumes timeslice numbering starts with 1; t=0 would induce null-rate at first step
 		levents = []
 		devents = dict(birth=[], death=[])
@@ -301,14 +284,9 @@ class MoranProcess(BaseMoranProcess, MultipleTreeModel):
 	"""
 	
 	def __init__(self, **kwargs):
-		print 'invoke _MoranProcess__init__'
+		print 'invoke models.MoranProcess.__init__()'
+		print 'kwargs:', kwargs
 		super(MoranProcess, self).__init__(**kwargs)
-		
-	#~ def get_extants(self, currtrees, extincts, depthsorted=False):
-		#~ """wrapper for method from MultipleTreeModel parent class, with making sure that the size of list is of expected size"""
-		#~ extants = super(MoranProcess, MoranProcess).get_extants(currtrees, extincts, depthsorted=depthsorted)
-		#~ assert len(extants) == self.popsize
-		#~ return extants
 		
 	def newlen(self, t):
 		# place holder; returns constant vaue
@@ -337,8 +315,10 @@ class PartialMoranProcess(BaseMoranProcess, SingleTreeModel):
 	"""
 	
 	def __init__(self, **kwargs):
-		print 'invoke _PartialMoranProcess__init__'
+		print 'invoke models.PartialMoranProcess.__init__()'
+		print 'kwargs:', kwargs
 		super(PartialMoranProcess, self).__init__(**kwargs)
+		self.dummynode = tree2.Node()
 		
 	def newlen(self, t):
 		# growth at ti follow expontial law of parameter b*i*(i+1), with compound parameter b = B
@@ -361,6 +341,7 @@ class BirthDeathDTLModel(MultipleTreeModel):
 	Preserves extinct branches.
 	"""
 	def __init__(self, rdup=1e-4, rtrans=1e-4, rloss=1e-4, randomseed=None):
+		print 'invoke models._BirthDeathDTLModel.__init__()'
 		super(BirthDeathDTLModel, self).__init__(randomseed=randomseed)
 		if rloss+rdup+rtrans > 1:
 			# assumes that only one kind of event can happen per branch per time slice
@@ -475,9 +456,12 @@ class BirthDeathDTLModel(MultipleTreeModel):
 		"""generate a code like exODT/ALE annotation of reconciled gene trees, cf. Szollosi et al. 2013, Lateral Gene Transfer from the Dead, Systematic Biology 62(3):386–397."""
 		pass
 		
-	def stepforward(self, currbranches, currrefbranches, timeslice, t, evtidgen=None, **kwargs):
+	def stepforward(self, currbranches, simul, evtidgen=None, **kwargs):
 		"""generate event record that refer to the reference tree"""
 		# NB: assumes timeslice numbering starts with 1; t=0 would induce null-rate at first step
+		t = simul.t
+		currrefbranches = simul.refconbran[t]
+		timeslice = simul.reftimeslices[t]
 		levents = []
 		devents = {}
 		trec = {}
@@ -513,6 +497,7 @@ class BirthDeathDTLModel(MultipleTreeModel):
 				else:
 					# annotate the node with the event (only for losses)
 					cb.edit_label("%s%d"%(DTLevent.etshorts[evtype], e.id()), mode='a', sep="-")
+					simul.extincts.append(cb)
 		return (levents, devents, trec)
 
 
@@ -534,6 +519,7 @@ class BaseEvent(object):
 	
 	def __init__(self, eventtype, treenode, t, argidgen, levents=None, devents=None):
 		self.eventtype = eventtype
+		self.extinction = False					# distinguish extinction/loss events from others
 		self.treenode = treenode				# the tree node at which the events occurs
 		self.t = t								# the timeslice number == the simulation iteration number
 		if argidgen: self.__id = next(argidgen)	# expects a generator object (should be property of the simulator instance)
@@ -546,7 +532,7 @@ class BaseEvent(object):
 		# print 'BaseEvent.__init__(): devents:', devents
 		
 	def id(self):
-		return self.__id		
+		return self.__id
 			
 class BDevent(BaseEvent):
 	"""descriptor of the birth-death event that occurred during the (species) tree simulation"""
@@ -556,6 +542,7 @@ class BDevent(BaseEvent):
 	def __init__(self, eventtype, treenode, t, argidgen, levents=None, devents=None):
 		assert eventtype in self.evttypes
 		super(BDevent, self).__init__(eventtype=eventtype, treenode=treenode, t=t, argidgen=argidgen, levents=levents, devents=devents)
+		if eventtype=='death': self.extinction = True
 			
 class DTLevent(BaseEvent):
 	"""descriptor of the duplication, transfer or loss event that occurred during the gene tree simulation"""
@@ -565,11 +552,12 @@ class DTLevent(BaseEvent):
 	
 	def __init__(self, eventtype, dongenenode, t, argidgen, levents=None, devents=None, trec=None):
 		assert eventtype in self.evttypes
-		self.dongenenode = dongenenode			# the gene tree node from which the events departs (for T) or where it simply occurs (for D and L)
+		#~ self.dongenenode = dongenenode		# == self.treenode : the gene tree node from which the events departs (for T) or where it simply occurs (for D and L)
 		self.donrefnode = dongenenode.ref		# the reference tree node from which the events departs (for T) or where it simply occurs (for D and L)
 		self.recgenenode = dongenenode.go_brother() if eventtype in ['trans', 'dupl'] else None	# the reference tree node into which the events arrives (for T and D only)
 		self.recrefnode = dongenenode.go_brother().ref if eventtype in ['trans', 'dupl'] else None	# the reference tree node into which the events arrives (for T and D only)
 		# NB avoid dynamic querying of 'donrefnode' and 'recrefnode' as the returned value of dongenenode.ref and dongenenode.go_brother().ref might change later in the simulation
 		super(DTLevent, self).__init__(eventtype=eventtype, treenode=dongenenode, t=t, argidgen=argidgen, levents=levents, devents=devents)
+		#~ self.treenode = dongenenode	# in base class __init__
 		if trec: trec.setdefault(self.recrefnode.label(), []).append(self)
-		del self.treenode	# redundant with self.dongenenode
+		if eventtype=='loss': self.extinction = True
