@@ -29,10 +29,10 @@ Loss events are realized by delting the the subtree under the point of the event
 In prokaryotic genomes, gene families have heterogeneous frequencies of gene presence amongst species lineages. This is modelled by sampling a fraction of the lineage trees prior to the gene-level simulation, representing the lineages in which the gene is present at first; only these lineage trees will then be included in the gene-level simulation and be subject to DTL events.
 
 By setting this frequency at the root and using DTL rates that have a null sum (D + T - L = 0, thus expecting constant genome size), it is straightforward to implement classes of genes that evolve while maintaining characteristic expected frequencies, e.g.:
- core genes with freq fluctuating narrowly around 1 (f_root=1, D=.0001, T.0001, L=.0002),
- accessory genes with freq fluctuating within 0-1 interval moderately (f_root=0.5, D=.0001, T.0001, L=.0002) or more widely (f_root=0.5, D=.001, T.001, L=.002),
- ORFan genes typically restricted to one or a few genomes, but often poping in and out genomes (f_root=.01, D=0, T.002, L=.002),
- or (breaking the balance of gains and losses) an invasive transposon (f_root=.01, D=0.001, T.001, L=.001).
+  * core genes with freq fluctuating narrowly around 1 (f_root=1, D=.0001, T.0001, L=.0002),
+  * accessory genes with freq fluctuating within 0-1 interval moderately (f_root=0.5, D=.0001, T.0001, L=.0002) or more widely (f_root=0.5, D=.001, T.001, L=.002),
+  * ORFan genes typically restricted to one or a few genomes, but often poping in and out genomes (f_root=.01, D=0, T.002, L=.002),
+  * or (breaking the balance of gains and losses) an invasive transposon (f_root=.01, D=0.001, T.001, L=.001).
 
 Requirements 
 ------------
