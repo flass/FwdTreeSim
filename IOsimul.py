@@ -83,6 +83,7 @@ class DTLSimulProfile(SimulProfile):
 	
 	def __init__(self, **kwargs):
 		print 'invoke simulator.DTLSimulProfile.__init__()'
+		print 'kwargs', kwargs
 		super(DTLSimulProfile, self).__init__(**kwargs) 
 		self.type = kwargs.get('type')
 		self.rootfreq = kwargs.get('rootfreq')
@@ -138,14 +139,15 @@ class MetaSimulProfile(object):
 		"""reads profile from JSON file or string; see example for format"""
 		with open(jsonfile, 'r') as fprofiles:
 			d = json.load(fprofiles, object_hook=_byteify)
-		clsname = d['simulclass']
+		clsname = d['simprofclass']
 		lprofiles = d['profiles']
 		lngprof = []
-		if clsname.startswith('simulator.'): simprofcls = eval(clsname)
-		else: cls = eval('simulator.'+clsname)
+		#~ if clsname.startswith('IOsimul.'): simprofcls = eval(clsname)
+		#~ else: simprofcls = eval('IOsimul.'+clsname)
+		simprofcls = eval(clsname)
 		for profile in lprofiles:
-			ngenes = freqstrprof['ngenefams']
-			dprof = freqstrprof['profile']
+			ngenes = profile['ngenefams']
+			dprof = profile['profile']
 			prof = {'rootfreq':dprof['rootfreq'], 'rateschedule':{}}
 			assert len(dprof['times'])==len(dprof['rates'])
 			for i in range(len(dprof['times'])):
@@ -154,7 +156,7 @@ class MetaSimulProfile(object):
 					raise ValueError, "input profile include several instance of the same time slice (t=%d) marked for changing evolutionary rates"%dprof['times'][i]
 				else:
 					prof['rateschedule'][dprof['times'][i]] = dprof['rates'][i]	
-			lngprof.append(float(ngenes), simprofcls(prof))
+			lngprof.append((float(ngenes), simprofcls(**prof)))
 		return lngprof
 			
 	def sampleprofile(self, verbose=False):

@@ -1,17 +1,17 @@
 {
-  "simulclass": "DTLtreeSimulator", 
+  "simprofclass": "DTLSimulProfile", 
   "profiles": [
-               { "ngenefams":200,
+               { "ngenefams":20,
 				 "profile": {
 					          "rootfreq":1, "times": [0], "rates": [{"rdup":0.0001, "rtrans":0.0001, "rloss":0.0002}]  
 					        }
 			   }, 
-               { "ngenefams":500,
+               { "ngenefams":50,
 				 "profile": { 
-					          "rootfreq":0.5, "times": [0, 100, 2000], "rates": [
-					         	         	         	         	         	  {"rdup":0.001, "rtrans":0.0001, "rloss":0.0002},
-					         	         	         	         	         	  {"rdup":0.0001, "rtrans":0.0001, "rloss":0.02},
-					         	         	         	         	         	  {"rdup":0.0001, "rtrans":0.01, "rloss":0.0002}
+					          "rootfreq":0.5, "times": [0, 100, 400], "rates": [
+					         	         	         	         	         	  {"rdup":0.0003, "rtrans":0.0001, "rloss":0.0004},
+					         	         	         	         	         	  {"rdup":0.0001, "rtrans":0.0001, "rloss":0.0002},
+					         	         	         	         	         	  {"rdup":0.0001, "rtrans":0.0005, "rloss":0.0005}
 					         	         	         	         	         	]
 					        }
 			   }

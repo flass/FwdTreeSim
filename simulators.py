@@ -299,7 +299,7 @@ class MultipleTreeSimulator(BaseTreeSimulator):
 		"""update model according to the profile's rate schedule and the current time step"""
 		if self.t in self.profile.rateschedule:
 			# updates the rate attributes, e.g. 'rdup', 'rtrans', 'rloss'
-			self.model.update(self.profile.rateschedule[self.t])
+			self.model.__dict__.update(self.profile.rateschedule[self.t])
 		
 	def evolve(self, ngen, verbose=False, nodeathspan=[], stopcondition=(lambda x: (None, None)), **kwargs):
 		"""simulation engine, iterates step of the simulation model"""
