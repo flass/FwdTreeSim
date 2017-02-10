@@ -392,7 +392,7 @@ class DTLtreeSimulator(MultipleTreeSimulator):
 	def __init__(self, model, noTrigger=False, **kwargs):
 		print 'invoke _DTLtreeSimulator__init__'
 		print 'kwargs:', kwargs
-		super(DTLtreeSimulator, self).__init__(model=model, noTrigger=True, **kwargs) 
+		super(DTLtreeSimulator, self).__init__(model=model, noTrigger=True, allow_multiple=False, **kwargs) 
 		# automatic checkdata() and evolve(ngen) triggers from parent classses are deactivated by noTrigger=True
 		#~ self.rootfreq = kwargs['rootfreq'] # frequency a which the gene family is found at the root of each tree in the multiple reference tree set (species lineages from a Moran process)
 		refsimul = kwargs.get('refsimul')
@@ -414,9 +414,29 @@ class DTLtreeSimulator(MultipleTreeSimulator):
 			self.ngen = kwargs.get('ngen')
 		self.profile = kwargs.get('profile', IOsimul.DTLSimulProfile(type='core'))
 			
-		# with a proba rootfreq, generate a gene tree for each reference tree;
+		# with a proba rootfreq, copy a gene tree from each reference tree;
 		# gene trees are like the reference tree set, with an addition of a link of each gene tree node to its reference tree node	
-		self.genetrees = [rt.deepcopybelow(keep_lg=True, add_ref_attr=True) for rt in self.reftrees if random.random()<self.profile.rootfreq]
+		
+		# when rootfreq > 1, do several rounds of sampling the reference trees, 1 per integer slice of the expected frequency,
+		# at a probability that's first 1 and in the last round is the decimal remainder
+		
+		# multiple stable copies should be modelled as different gene families;
+		# the only benefit of modelling them as an originally multi-copy gene familly is that they can recombine...
+		# not sure this is really much different from evolving separately though, and would complicate locus attribution at t=0 in the model with linkage
+		# by default, should keep starting with <=1 copies/genome
+		if self.profile.rootfreq > 1:
+			if allow_multiple: print "Warning: 'allow_multiple' option is on, and expected root frequency of gene is > 1  => !!experimental!!"
+			else:  raise ValueError, "Expected root frequency of gene should be <= 1 (for rootfreq > 1, must turn on 'allow_multiple' option => !!experimental!!)"
+		p = float(self.profile.rootfreq)
+		self.genetrees = []
+		while p >= 0:
+			self.genetrees += [rt.deepcopybelow(keep_lg=True, add_ref_attr=True) for rt in self.reftrees if random.random() < p]
+			p -= 1.0
+			# not ideal as that does not introduce much variance in copy number, as only the nth copy is not certain to be sampled.
+			# Ideal for modelling genes with proba 1.x, i.e. core genes with possibility of transient duplicates arising
+			
+		
+		
 		self.eventsmap = {}
 		self.transferrec = {}
 		
