@@ -1,28 +1,38 @@
 # FwdTreeSim
 
-Forward phylogenetic simulation of bacterial pangenome, with gene Duplication, horizontal Transfer and Loss (DTL). 
+Forward phylogenetic simulation of bacterial pangenome, under a model with gene Duplication, horizontal Transfer and Loss (DTL). 
 
 Description
 -----------
 
-DTL evolution model is derived from the xODT model described in [Szollosi, G. et al. 2013, Syst. Biol. 62(3):386-397](http://sysbio.oxfordjournals.org/content/62/3/386), for which a probabilistic inference tool, ALE, is available [here](https://github.com/ssolo/ALE).
+The present DTL evolution model is derived from the xODT model described in [Szollosi, G. et al. 2013, Syst. Biol. 62(3):386-397](http://sysbio.oxfordjournals.org/content/62/3/386), for which a probabilistic inference tool, ALE, is available [here](https://github.com/ssolo/ALE).
 In addition, diversity of evolutionary dynamics of gene families within a species' (or any coherent organism group's) pangenome is modelled, with classes of genes such as core, accessory and ORFan genes. Also the evolution of genome structure in terms of replicon units (chromosomes, plasmids) and gene linkage are modelled, in order to track the co-evolution of linked genes.
 
-In this model, a species population evolves following a Moran process (Hey, J. 1992. Evolution, 46(3):627-640), i.e. with a fixed sized population of lineages undergoing one lineage extinction and one complementary speciation per time unit. This generates the species history, which is the top layer of the model. Imprtantly, the co-existence of lineages that went extinct at some point with those with extant descendents is modelled.
-Genomes evolve following the species history, but their component genes are subject to additonal evolutionary processes, namely gene duplication and loss within, and horizontal transfer between species lineages. This includes the possibility of horizontal transfer from/to lineages that ultimately will be extinct, thus accounting for the (overwhelming) contribution of extinct or unsamped lineages to the observed genetic diversity.
+In this model, a species population evolves following a Moran process (Hey, J. 1992. Evolution, 46(3):627-640), i.e. with a fixed sized population of lineages undergoing one lineage extinction and one complementary speciation per time unit. This generates the species history, which is the bottom layer of the model. Importantly, the co-existence of lineages that went extinct at some point with lineages that have extant descendents is modelled.
+
+Genomes evolve following the species history, but their component genes are subject to additonal evolutionary processes, namely gene duplication and loss within, and horizontal transfer between species lineages. This includes the possibility of horizontal transfer from/to lineages that ultimately will go extinct, thus accounting for the (overwhelming) contribution of extinct or unsamped lineages to the observed genetic diversity.
 The second layer thus consists of a collection of gene families evolving in reference to the species history, and independently from each other.
+
 This can be complexified by considering the linkage of genes within genome to incorporate the non-independence of evolution of linked genes. This is modelled through the addition of an intermediate layer tracking the evolution of replication units (replicons), and the possibility that DTL events span several neighbouring genes. While this is a more realistic rendering of how DNA macromolecule evolve, it also allows the user to test hypotheses on the co-selection of genesunder a neutral model where gene co-evolve.
 
 Implementation
 --------------
 
-The nested nature of the model with gene (in replicons) in genomes provides the opportunity to simulate their history in a incremental manner.
-First, the species tree is simulated (e.g. under a Moran process, but other models are implemented). In the case of the Moran process, /n/ disjoint lineage trees evolve in parallel; these can be later connected at their root to provide a full species tree (with extinct lineages).
+The nested nature of the model with genes evolving (within replicons) within genomes provides the opportunity to simulate their history in a incremental manner:
+
+First, the species tree is simulated (e.g. under a Moran process, but other models are implemented). In the case of the Moran process, *n* disjoint lineage trees evolve in parallel; these can be later connected at their root to provide a full species tree (with extinct lineages).
+
 Second, each gene tree is simulated by copying the species tree and then proceeding from the initial time slice (where lineages have their root) to the final time slice (where are leaves of surviving lineages) and gradually editing this tree. Duplication, transfer and loss events occur stochastically in each gene tree branch crossing the current time slice.
-Loss events are realized by delting the the subtree under the point of the event on the branch. Duplications are realized by copying the subtree under the event point and grafting that copy as a sister lineage of its template, hence creating a new node at the even point. Transfers are realized similarly, by copying the subtree under the point on the /receiving/ branch and grafting that copy to the /donor/ branch at the same time point, hence creating a new node there, under which descendents of the donor and recipients of the transfer form sister clades.
+
+Loss events are realized by delting the the subtree under the point of the event on the branch. Duplications are realized by copying the subtree under the event point and grafting that copy as a sister lineage of its template, hence creating a new node at the even point. Transfers are realized similarly, by copying the subtree under the point on the *receiving* branch and grafting that copy to the *donor* branch at the same time point, hence creating a new node there, under which descendents of the donor and recipients of the transfer form sister clades.
 
 In prokaryotic genomes, gene families have heterogeneous frequencies of gene presence amongst species lineages. This is modelled by sampling a fraction of the lineage trees prior to the gene-level simulation, representing the lineages in which the gene is present at first; only these lineage trees will then be included in the gene-level simulation and be subject to DTL events.
-By setting this frequency at the root and using DTL rates that have a null sum (D+T-L, thus assumingconstant genome size), it is straightforward to implement classes of genes with different expected frequencies, e.g. core genes with freq=1 (or more realistically fluctuating within 0.95-1, accessory genes with freq fluctuating within 0.1-0.9, or ORFans with freq < 0.01.
+
+By setting this frequency at the root and using DTL rates that have a null sum (D + T - L = 0, thus expecting constant genome size), it is straightforward to implement classes of genes that evolve while maintaining characteristic expected frequencies, e.g.:
+ core genes with freq fluctuating narrowly around 1 (f_root=1, D=.0001, T.0001, L=.0002),
+ accessory genes with freq fluctuating within 0-1 interval moderately (f_root=0.5, D=.0001, T.0001, L=.0002) or more widely (f_root=0.5, D=.001, T.001, L=.002),
+ ORFan genes typically restricted to one or a few genomes, but often poping in and out genomes (f_root=.01, D=0, T.002, L=.002),
+ or (breaking the balance of gains and losses) an invasive transposon (f_root=.01, D=0.001, T.001, L=.001).
 
 Requirements 
 ------------
