@@ -7,11 +7,45 @@ __author__ = "Florent Lassalle <florent.lassalle@imperial.ac.uk>"
 __date__ = "27 July 2016"
 __credits__ = """Leonor Palmeira and Laurent Guéguen for initiating the tree2.Node module."""
 
+from FwdTreeSim import IOsimul
+
+
+genetypes = ['core', 'accessory-slow', 'orfan-slow', 'accessory-fast', 'orfan-fast']
+
+replicontypes = ['chromosome', 'plasmid', 'chromid']
+
+genecontentprofiles = {'chromosome':{'core':0.5, 'accessory-slow':0.15, 'orfan-slow':0.1, 'accessory-fast':0.1, 'orfan-fast':0.15}, \
+						  'plasmid':{'core':0.0, 'accessory-slow':0.35, 'orfan-slow':0.1, 'accessory-fast':0.1, 'orfan-fast':0.35}, \
+						  'chromid':{'core':0.3, 'accessory-slow':0.25, 'orfan-slow':0.1, 'accessory-fast':0.1, 'orfan-fast':0.15} \
+					  }
 
 ### not functional ; still under development
 
+class Pangenome(object):
+	"""Top simulation object, includes all the genomes and gene families"""
+	def __init__(self, speciessim, lgenefams=[], t=0, **kwargs):
+		verbose = kwargs.get('verbose', !kwargs.get('silent', False))
+		# the species simulation at time t is taken to define the starting lineages in which to distribute gene families
+		self.speciessim = speciessim
+		self.t = t
+		self.size = len(lgenefamsim) if lgenefamsim else kwargs.get('size', 10000)
+		if lgenefams:
+			self.genefams = lgenefams
+		else:
+			panprofile = kwargs.get('panprofile', IOsimul.MetaSimulProfile(profiles=[(p*self.size, IOsimul.DTLSimulProfile(type=t)) for t,p in genecontentprofiles['chromosome'].iteritems()]))
+			self.genefams = []
+			for n in range(self.size):
+				# initiate a gene simulation
+				bddtlmodel = models.BirthDeathDTLModel(self.size)
+				bddtlprof = panprofile.sampleprofile(verbose=verbose)
+				bddtlsim = simulators.DTLtreeSimulator(model=bddtlmodel, refsimul=moransim, profile=bddtlprof, noTrigger=True)
+				# create a gene family
+				genefam = GeneFam(name='g%06d'%n, type=bddtlprof.type, history=bddtlsim)
+				self.genefams.append(genefam)
+			
+
 class Genome(object):
-	""""""
+	"""the genome map of a single lineage"""
 	def __init__(self, dreplicons):
 		self.dreplicons = dreplicons
 		
@@ -23,7 +57,6 @@ class Genome(object):
 		
 class Replicon(object):
 	""""""
-	replicontypes = ['chromosome', 'plasmid', 'chromid']
 	
 	def __init__(self, lgenes, circular=True, **kwargs):
 		self.lgenes = lgenes
@@ -103,14 +136,24 @@ class Replicon(object):
 	
 class Gene(object):
 	""""""
-	genetypes = ['core', 'accessory-slow', 'orfan-slow', 'accessory-fast', 'orfan-fast']
 	
 	def __init__(self, treenode, **kwargs):
 		self.treenode = treenode
 		self.name = kwargs.get('name')
-		self.type = kwargs.get('type', "core")
 		self.replicon = None
+		self.fam = kwargs.get('fam')
 		
 	def attach_to_replicon(self, repli):
 		self.replicon = repli
 		#replicon.insert_gene(self, locus=locus)
+
+		
+	
+class GeneFam(object):
+	""""""
+	
+	def __init__(self, treenode, **kwargs):
+		self.name = kwargs.get('name')
+		self.type = kwargs.get('type', "core")
+		self.history = kwargs.get('genesim')
+		
