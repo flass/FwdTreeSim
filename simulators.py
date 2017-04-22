@@ -72,12 +72,13 @@ class BaseTreeSimulator(object):
 		self.eventsmap = kwargs.get('eventsmap', {})
 		self.extincts = kwargs.get('extincts', [])
 		self.contempbranches =  kwargs.get('contempbranches', [])
-		self.nodeClass = kwargs.get('nodeClass', tree2.Node)
+		self.nodeClass = kwargs.get('nodeClass', tree2.AnnotatedNode)
 		self.ngen = kwargs.get('ngen')
 		self.eventidgen = models.eventIdGen()	# generator object providing serial unique identifiers for event objects
 		self.dumppickle_warning = '\n'.join(["Cannot pickle generator objects; to pickle simulator object instance %s,"%repr(self), \
 											"you have to first delete its event id generator attribute 'eventidgen'", \
 											"(will discontinue numeration of events for further simulation)."])
+		self.logger = IOsimul.SimulLogger(simultype=type(self))
 		
 	def __getattr__(self, name):
 		if name=='__dict__': return self.__dict__
@@ -125,6 +126,17 @@ class BaseTreeSimulator(object):
 			# set root branch lenght to zero
 			livetree.set_lg(0)
 		return livetree
+		
+	def prepare_write_output(self, connecttrees=10):
+		"""prepare for data export of simulation"""
+		if has_attr(self, 'get_extanttrees'):
+			extanttree = self.get_extanttrees(connecttrees=connecttrees)
+		elif has_attr(self, 'get_extanttree'):
+			extanttree = self.get_extanttree()
+		if self.nodeClass == tree2.AnnotatedNode:
+			# number nodes by increasing branch lenght distance from root, as ALE labels a species tree
+			extanttree.complete_node_ids(order=[sorted(extanttree.get_all_children(), key=lambda x: x.distance_root())])
+			
 
 ################################################
 # Classes describing how wether a single or many
@@ -467,11 +479,11 @@ class DTLtreeSimulator(MultipleTreeSimulator):
 			currbranches = self.get_current_branches((timeslice[1]+timeslice[0])/2) # input
 			#~ print ": currbranches", [cb.label() for cb in currbranches]
 			levents, devents, trec = self.model.stepforward(currbranches, self, evtidgen=evtidgen)
-			# record what happened
-			#~ for evt in levents:
-				#~ # record the extinction events
-				#~ if evt.extinction:
-					#~ self.extincts.append(evt.treenode)
+			# record on log what happened
+			if self.logger:
+				for evt in levents:
+					# record the extinction events
+					self.logger.DTLeventLog(evt)
 			self.contempbranches.append(currbranches)
 			self.eventsrecord.append(levents)
 			self.eventsmap.update(devents)

@@ -170,12 +170,21 @@ class MetaSimulProfile(object):
 class SimulLogger(object):
 	"""Generate dump files for building a database of  simulation models and scenarios and resulting trees and events."""
 	
-	def __init__(self, table2fields, bnfout="log_", mode='w'):
+	def __init__(self, table_fields=None, simultype=None, bnfout="log_", mode='w'):
 		"""(create and) open connections to the output database dump file.
 		
 		'table2fields' argument is a dict with the desired database's table names as keys 
 		and a list of table fields as values.
 		"""
+		if simultype:
+			if 'DTLtreeSimulator' in simultype:
+				table2fields = {'species_tree_record':['species_branch_name', 'Duplications', 'Transfers', 'Losses', 'Originations', 'copies'], \
+								'undated_transfer_record':['from', 'to', 'freq'], \
+								'event_record':['evt_type', 'from_species_rank', 't_out', 'from_species_branch_name', 'from_gene_node_id', 'to_species_rank', 't_back', 'to_species_branch_name', 'to_gene_node_id'] \
+								}
+		else:
+			table2fields = table_fields
+			
 		# collection of file-like objects to write the different log streams
 		self.foutdict = {}
 		for tablename in table2fields:
@@ -189,3 +198,9 @@ class SimulLogger(object):
 		"""close all file connections"""
 		for tabledump in self.foutdict.values():
 			tabledump.close()
+
+	def DTLeventLog(self, evt):
+		self.foutdict['event_record'].write('\t'.join([models.DTLevent.etshorts[evt.eventtype], evt.donrefnode.nodeid()])+'\n')
+		
+		
+	
