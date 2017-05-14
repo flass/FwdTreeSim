@@ -199,8 +199,82 @@ class SimulLogger(object):
 		for tabledump in self.foutdict.values():
 			tabledump.close()
 
-	def DTLeventLog(self, evt):
-		self.foutdict['event_record'].write('\t'.join([models.DTLevent.etshorts[evt.eventtype], evt.donrefnode.nodeid()])+'\n')
+	def DTLsingleEventLog(self, evt):
+		self.foutdict['event_record'].write('\t'.join([models.DTLevent.etshorts[evt.eventtype], evt.donrefnode.nodeid(), evt.t, ])+'\n')
 		
+	def DTLsummaryEventLog(self, )
+		self.foutdict['undated_transfer_record']
+	
 		
+def annotateSpeciationLossEvents(trimLosses=False, **kw):
+	"""takes an input tree and returns it annotated tree with SL events at speciation nodes which one child lineage ends with a loss event
+	
+	The input tree can be passed trhough kw argument 'extanttree' or this may be extracted from a simulation passed as kw argument 'simul'.
+	optionally prunes off the loss-ending lineage (preserving the node when not stading alone).
+	"""	
+	def getheadnodes(node, removednodelabels=None):
+		"""return the head node and the one just under it on a "rosary"-like chain of single-child nodes"""
+		rosnode = node
+		frosnode = rosnode.go_father()
+		while frosnode and frosnode.nb_children()==1:
+			if not (removednodelabels is None): removednodelabels.append(rosnode.label())
+			rosnode = frosnode
+			frosnode = rosnode.go_father()
+		if frosnode:
+			headnode = frosnode
+			subheadnode = rosnode
+		else:
+			# rosnode has no father <=> is root
+			headnode = rosnode
+			subheadnode = rosnode.get_children()[0]
+		return (headnode, subheadnode)
+		
+	def trimlosses(headnode, subheadnode):
+		headnode.unlink_child(subheadnode)
+		while headnode.nb_children()==0:
+			# reach the next headnode with non-null descendance
+			headnode, subheadnode = getheadnodes(headnode, removednodelabels=removednodelabels)
+			headnode.unlink_child(subheadnode)
+		return (headnode, subheadnode)
+		
+	simul = kw.get('simul')
+	extanttree = kw.get('extanttree', simul.extanttree)
+	if simul: llossnodes = kw.get('lossnodes', simul.extincts)
+	else: llossnodes = kw.get('lossnodes', extanttree.get_postordertraversal_children())
+	if trimLosses: removednodelabels = []
+	for node in llossnodes:
+		if node.label() in removednodelabels: continue
+		# verify node is a loss event node
+		nodev = getattr(node, 'event', None)
+		if nodev and nodev[1]=='loss':
+			headnode, subheadnode = getheadnodes(node, removednodelabels=removednodelabels)
+			# tag the the lineage-head node with the SL event (same event id than the lineage-end loss event)
+			headnode.event = (nodev[0], 'speciationloss')
+			if trimLosses:
+				headnode, subheadnode = trimlosses(headnode, subheadnode)
+				if headnode.is_root():
+					# all lineages were ending by losses; tree is now void
+					return None
+	return extanttree
+
+# could be in simulators
+def traceback_DTLevent_chain(event, simul, **kw):
+	"""return the chain of DTL event ids that connects an event's node with the next extant lineage, that is the chain of event that occured over a gene tree branch
+	
+	takes as argument a models.DTLevent instance and a simulators.DTLtreeSimulator instance by which it was generated, and from which the following attributes will be fetched: 
+	a gene tree pruned of its extinct lineages ('extanttree'), a map of gene tree node labels to event ids ('eventsmap') and the list of events affecting extant lineages ('extantevents').
+	"""
+	endrecnode = simul.extanttree[event.recipient().label()]
+	eventchain = []
+	recnode = endrecnode
+	frecnode = recnode.go_father()
+	while frecnode and frecnode.nb_children()==1:
+		upevtid = simul.eventsmap.get(recnode.label())
+		if upevtid and (upevtid in simul.extantevents):
+			eventchain.append(upevtid)
+		recnode = frecnode
+		frecnode = recnode.go_father()
+	return eventchain
+				
+			
 	

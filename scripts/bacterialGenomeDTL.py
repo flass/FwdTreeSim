@@ -5,6 +5,7 @@ import sys, os, copy
 import getopt
 from FwdTreeSim import models, simulators, IOsimul
 import tree2
+import random
 
 def usage():
 	crindent = "\t\t\t\t\t"
@@ -33,7 +34,7 @@ def usage():
 	      crindent+"# default: 0.5 ; overriden by providing gene family profiles."]
 	
 	l += ["  Output options:"]
-	#~ l += ["\t-e  --sample.extant.species int\t\thow many genomes are sampled in the end? trees are pruned accordingly\t# all sampled by default."]
+	l += ["\t-e  --sample.extant.species int\t\thow many genomes are sampled in the end? trees are pruned accordingly\t# all sampled by default."]
 	l += ["\t-l  --sample.larger.trees int\thow many single gene trees from a gene family population should be written out?", \
 	      crindent+"Can be handy to just diagnostic the simulated trees # all written by default."]
 	l += ["\t-c  --connect.all.trees float\tIn addition, return the multiple gene trees from a gene family population as one, connecting them at their root.", \
@@ -96,7 +97,8 @@ def main():
 
 	nlargegenetrees = int(dopt.get('-l', dopt.get('--sample.larger.trees', -1)))
 	lentoroot = float(dopt.get('-c', dopt.get('--connect.all.trees', -1)))
-	#~ samplextant = int(dopt.get('-e', dopt.get('--sample.extant.species', 0)))
+	samplextant = int(dopt.get('-e', dopt.get('--sample.extant.species', 0)))
+	assert samplextant <= popsize
 
 	#~ parser = argparse.ArgumentParser(description='Simulate phylogenic trees describing evolution of a population of bacterial genomes, with species, replicon/locus and gene layers.')
 	#~ parser.add_argument('-o', '--outdir', )
@@ -115,20 +117,30 @@ def main():
 		conrt = moransim.connecttrees(lentoroot, returnCopy=True)
 		conrt.write_newick("%s/reftrees/connected.reftree_full.nwk"%(outdir))
 		# prune dead lineages and connect all roots of the species lineage trees
-		extconrt = moransim.get_extanttrees(compute=True, connecttrees=lentoroot)
+		extconrt = moransim.get_extanttree(compute=True, lentoroot=lentoroot)
 		extconrt.write_newick("%s/reftrees/connected.reftree_extant.nwk"%(outdir))
+		extantspe = extconrt.get_leaf_labels()
 	else:
+		# write lineage trees separately
 		lextrt = moransim.get_extanttrees(compute=True)
+		extantspe = []
 		for k, extrt in enumerate(lextrt):
 			extconrt.write_newick("%s/reftrees/reftree.%d_extant.nwk"%(outdir, k))
-	
+			extantspe += extconrt.get_leaf_labels()
+			
+	# select sampled species among the N extant
+	if samplextant:
+		sampledspe = random.sample(extantspe, samplextant)
+		refnodeswithdescent = moransim.get_nodes_with_descendants(sample=sampledspe)
+	else:
+		refnodeswithdescent = moransim.get_nodes_with_descendants()
 	# serial simulation of gene families, have to offer a parrallel version
 	for k in range(ngenes):
 		print "### simulate gene tree", k
 		# simulate gene tree under the same reference tree set (= species/organism population history)
 		#~ bddtlmodel = models.BirthDeathDTLModel(rdup=dtlrates[0], rtrans=dtlrates[1], rloss=dtlrates[2])
 		bddtlmodel = models.BirthDeathDTLModel()
-		bddtlsim = simulators.DTLtreeSimulator(model=bddtlmodel, refsimul=moransim, profile=dtlprof.sampleprofile(verbose=True), noTrigger=True)
+		bddtlsim = simulators.DTLtreeSimulator(model=bddtlmodel, refsimul=moransim, refnodeswithdescent=refnodeswithdescent, profile=dtlprof.sampleprofile(verbose=True), noTrigger=True)
 		bddtlsim.evolve(bddtlsim.ngen)
 
 		# save ref and gene tree simulation object together to save space as they share references to same objects
@@ -152,7 +164,7 @@ def main():
 			# write out connected trees
 			congt.write_newick("%s/genetrees/simul.%d.connected_gt_full.nwk"%(outdir, k))
 			# prune dead lineages and connect all roots of the species lineage trees
-			extconrt = bddtlsim.get_extanttrees(compute=True, connecttrees=lentoroot)
+			extconrt = bddtlsim.get_extanttree(compute=True, lentoroot=lentoroot)
 			print extconrt
 			extconrt.write_newick("%s/genetrees/simul.%d.connected_gt_extant.nwk"%(outdir, k))
 				

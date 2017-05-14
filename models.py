@@ -483,20 +483,20 @@ class BirthDeathDTLModel(MultipleTreeModel):
 			if evtype: 
 				e = DTLevent(evtype, cb, t, evtidgen, levents, devents, trec)
 				# annoates the node's subtree labels by appending a string that signifies the event
-				if e.recgenenode:
+				if evtype in ['trans', 'dupl']:
 					if evtype=='trans':
 						# add a pre-tag to salvage the info about the line of events leading to this node
 						# which is not present on the label copied from the reference tree
 						prelab = cb.label().split('-', 1)[-1]
 					else:
 						prelab = ""
-					# annotate the transfer/duplication node
-					cb.go_father().edit_label("%s%s%d"%(prelab, DTLevent.etshorts[evtype], e.id()), mode='a', sep="-")
+					# annotate the newly created transfer/duplication node label with the event tag
+					cb.go_father().edit_label("%s%s%d"%(prelab, DTLevent.etshorts[evtype], e.evtid()), mode='a', sep="-")
 					# and the recipient with all its descendants
-					e.recgenenode.edit_all_labels("%s%s%d"%(prelab, DTLevent.etshorts[evtype], e.id()), mode='a', sep="-")
+					e.recgenenode.edit_all_labels("%s%s%d"%(prelab, DTLevent.etshorts[evtype], e.evtid()), mode='a', sep="-")
 				else:
-					# annotate the node with the event (only for losses)
-					cb.edit_label("%s%d"%(DTLevent.etshorts[evtype], e.id()), mode='a', sep="-")
+					# (loss event) annotate the node label with the event tag with the event tag
+					cb.edit_label("%s%d"%(DTLevent.etshorts[evtype], e.evtid()), mode='a', sep="-")
 					simul.extincts.append(cb)
 		return (levents, devents, trec)
 
@@ -527,11 +527,12 @@ class BaseEvent(object):
 												# (initialized once when the module is imported for all separate simulations,
 												# and not continuable when loading pickled instances)
 		if not (levents is None): levents.append(self)
-		if not (devents is None): devents.setdefault(treenode.label(), []).append(self)
+		if not (devents is None): devents.setdefault(treenode.label(), []).append(self.__id)
 		# print 'BaseEvent.__init__(): levents:', levents
 		# print 'BaseEvent.__init__(): devents:', devents
+		treenode.event = (self.__id, eventtype)			# tag the gene tree with the event
 		
-	def id(self):
+	def evtid(self):
 		return self.__id
 			
 class BDevent(BaseEvent):
@@ -548,7 +549,7 @@ class DTLevent(BaseEvent):
 	"""descriptor of the duplication, transfer or loss event that occurred during the gene tree simulation"""
 	
 	evttypes = ['dupl', 'trans', 'loss']
-	etshorts = {'dupl':'D', 'trans':'T', 'loss':'L'}
+	etshorts = {'dupl':'D', 'trans':'T', 'loss':'L', 'speciationloss':'SL'}
 	
 	def __init__(self, eventtype, dongenenode, t, argidgen, levents=None, devents=None, trec=None):
 		assert eventtype in self.evttypes
@@ -559,5 +560,29 @@ class DTLevent(BaseEvent):
 		# NB avoid dynamic querying of 'donrefnode' and 'recrefnode' as the returned value of dongenenode.ref and dongenenode.go_brother().ref might change later in the simulation
 		super(DTLevent, self).__init__(eventtype=eventtype, treenode=dongenenode, t=t, argidgen=argidgen, levents=levents, devents=devents)
 		#~ self.treenode = dongenenode	# in base class __init__
-		if trec: trec.setdefault(self.recrefnode.label(), []).append(self)
+		if trec: trec.setdefault(self.recrefnode.label(), []).append(self.__id)
 		if eventtype=='loss': self.extinction = True
+		
+	def recipient(self):
+		 if self.eventtype in ['trans', 'dupl']: return self.treenode
+		 else: return self.recgenenode
+		 
+	def sender(self):
+		return self.dongenenode
+	
+	#~ @staticmethod
+	#~ def retrieveCollapsedEquivalent(nodelab, extantnodelabs, dcollapsednodelabs):
+		#~ nodelabeq = nodelab
+		#~ while nodelabeq not in extantnodelabs:
+			#~ nodelabeq = dcollapsednodelabs[nodelabeq][0]
+		#~ return nodelabeq
+		
+	#~ @staticmethod
+	#~ def retrieveTopCollapsedEquivalent(nodelabeq, dcollapsednodelabs, node):
+		#~ """fetch the deepest (most close to root) branch that was collapsed into the input"""
+		#~ lnodelabs = []
+		#~ for nodelab, tnodelabeq in dcollapsednodelabs.items():
+			#~ if tnodelabeq==(nodelabeq, 'c'): lnodelabs.append(nodelab)
+		#~ if not lnodelabs: raise ValueError, "no equivalent node tuple matching %s"%str((nodelabeq, 'c'))
+		
+		
