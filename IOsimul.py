@@ -202,7 +202,7 @@ class SimulLogger(object):
 	def DTLsingleEventLog(self, evt):
 		self.foutdict['event_record'].write('\t'.join([models.DTLevent.etshorts[evt.eventtype], evt.donrefnode.nodeid(), evt.t, ])+'\n')
 		
-	def DTLsummaryEventLog(self, )
+	def DTLsummaryEventLog(self, evt):
 		self.foutdict['undated_transfer_record']
 	
 		
