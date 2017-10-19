@@ -350,6 +350,9 @@ class BirthDeathDTLModel(MultipleTreeModel):
 		self.rdup = rdup
 		self.rtrans = rtrans
 		self.rloss = rloss
+		self.cumploss = rloss
+		self.cumpdupl = self.cumploss + rdup
+		self.cumptrans = self.cumpdupl + rtrans
 		
 	@staticmethod
 	def midTimesliceOnBranch(node, timeslice):
@@ -467,13 +470,14 @@ class BirthDeathDTLModel(MultipleTreeModel):
 		trec = {}
 		for cb in currbranches:
 			# consider events exclusive, each proba is counted cummulatively so every draw in [0;1] can only point to one event type
-			if random.random() <= self.rloss:
+			rr = random.random()
+			if rr <= self.cumploss:
 				evtype = 'loss'
 				self.lossEvent(cb, timeslice)
-			elif random.random() <= self.rloss+self.rdup:
+			elif rr <= self.cumpdupl:
 				evtype = 'dupl'
 				self.duplicationEvent(cb, timeslice)
-			elif random.random() <= self.rloss+self.rdup+self.rtrans:
+			elif rr <= self.cumptrans:
 				evtype = 'trans'
 				# pick a recipient branch from the current REFERENCE tree branches
 				rec = random.choice(currrefbranches)
