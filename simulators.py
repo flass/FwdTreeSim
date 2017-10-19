@@ -479,32 +479,47 @@ class DTLtreeSimulator(MultipleTreeSimulator):
 		
 		
 		self.profile = kwargs.get('profile', IOsimul.DTLSimulProfile(type='core'))
-			
-		# with a proba rootfreq, copy a gene tree from each reference tree;
-		# gene trees are like the reference tree set, with an addition of a link of each gene tree node to its reference tree node	
-		
-		# when rootfreq > 1, do several rounds of sampling the reference trees, 1 per integer slice of the expected frequency,
-		# at a probability that's first 1 and in the last round is the decimal remainder
-		
-		# multiple stable copies should be modelled as different gene families;
-		# the only benefit of modelling them as an originally multi-copy gene familly is that they can recombine...
-		# not sure this is really much different from evolving separately though, and would complicate locus attribution at t=0 in the model with linkage
-		# by default, should keep starting with <=1 copies/genome
-		if self.profile.rootfreq > 1:
-			if allow_multiple: print "Warning: 'allow_multiple' option is on, and expected root frequency of gene is > 1  => !!experimental!!"
-			else:  raise ValueError, "Expected root frequency of gene should be <= 1 (for rootfreq > 1, must turn on 'allow_multiple' option => !!experimental!!)"
-		p = float(self.profile.rootfreq)
 		self.genetrees = []
-		while p >= 0:
-			self.genetrees += [rt.deepcopybelow(keep_lg=True, add_ref_attr=True) for rt in self.reftrees if random.random() < p]
-			p -= 1.0
-			# not ideal as that does not introduce much variance in copy number, as only the nth copy is not certain to be sampled.
-			# Ideal for modelling genes with proba 1.x, i.e. core genes with possibility of transient duplicates arising
+		self.pickgenelineages(allow_multiple=allow_multiple)
 		
 		if not noTrigger:
 			# self.checkdata()
 			# if ngen specified, launch simulation for ngen iterations
 			if self.ngen: self.evolve(self.ngen)
+			
+	def pickgenelineages(self, allow_multiple=False, return_index=False, from_index=None):
+			"""with a proba rootfreq, copy a gene tree from each reference tree
+			
+			# gene trees are like the reference tree set, with an addition of a link of each gene tree node to its reference tree node	
+			
+			# when rootfreq > 1, do several rounds of sampling the reference trees, 1 per integer slice of the expected frequency,
+			# at a probability that's first 1 and in the last round is the decimal remainder
+			
+			# multiple stable copies should be modelled as different gene families (duplicate lineage imply roblems in node labelling for instance);
+			# the only benefit of modelling them as an originally multi-copy gene familly is that they can recombine...
+			# not sure this is really much different from evolving separately though, and would complicate locus attribution at t=0 in the model with linkage
+			# by default, should keep starting with <=1 copies/genome
+			"""
+			genetrees = []
+			if self.profile.rootfreq > 1:
+				if allow_multiple: print "Warning: 'allow_multiple' option is on, and expected root frequency of gene is > 1  => !!experimental!!"
+				else:  raise ValueError, "Expected root frequency of gene should be <= 1 (for rootfreq > 1, must turn on 'allow_multiple' option => !!experimental!!)"
+			p = float(self.profile.rootfreq)
+			while p >= 0:
+				if return_index: 
+					genetrees += [n for n in range(len(self.reftrees)) if random.random() < p]
+				else:
+					if from_index:
+						for n in from_index:
+							genetrees.append(self.reftrees[n])
+						#~ genetrees += [rt.deepcopybelow(keep_lg=True, add_ref_attr=True) for n, rt in enumerate(self.reftrees) if n in from_index]
+					else:
+						genetrees += [rt.deepcopybelow(keep_lg=True, add_ref_attr=True) for rt in self.reftrees if random.random() < p]
+				p -= 1.0
+				# not ideal as that does not introduce much variance in copy number, as only the nth copy is not certain to be sampled.
+				# Ideal for modelling genes with proba 1.x, i.e. core genes with possibility of transient duplicates arising
+			if return_index: return genetrees
+			else: self.genetrees = genetrees
 		
 	def get_current_branches(self, l):
 		"""retrieves branches reaching the root-to-tip length of l"""
