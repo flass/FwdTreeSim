@@ -20,7 +20,7 @@ Implementation
 
 The nested nature of the model with genes evolving (within replicons) within genomes provides the opportunity to simulate their history in a incremental manner:
 
-First, the species tree is simulated (e.g. under a Moran process, but other models are implemented). In the case of the Moran process, *n* disjoint lineage trees evolve in parallel; these can be later connected at their root to provide a full species tree (with extinct lineages).
+First, the species tree is simulated (e.g. under a Moran process, but other models are implemented). In the case of the Moran process, *n* disjoint species lineages (trees) evolve in parallel; this collection of lineages can be later connected at their root to provide a full species tree (with extinct lineages).
 
 Second, each gene tree is simulated by copying the species tree and then proceeding from the initial time slice (where lineages have their root) to the final time slice (where are leaves of surviving lineages) and gradually editing this tree. Duplication, transfer and loss events occur stochastically in each gene tree branch crossing the current time slice.
 
@@ -28,11 +28,11 @@ Loss events are realized by delting the the subtree under the point of the event
 
 In prokaryotic genomes, gene families have heterogeneous frequencies of gene presence amongst species lineages. This is modelled by sampling a fraction of the lineage trees prior to the gene-level simulation, representing the lineages in which the gene is present at first; only these lineage trees will then be included in the gene-level simulation and be subject to DTL events.
 
-By setting this frequency at the root and using DTL rates that have a null sum (D + T - L = 0, thus expecting constant genome size), it is straightforward to implement classes of genes that evolve while maintaining characteristic expected frequencies, e.g.:
-  * core genes with freq fluctuating narrowly around 1 (f_root=1, D=.0001, T.0001, L=.0002),
-  * accessory genes with freq fluctuating within 0-1 interval moderately (f_root=0.5, D=.0001, T.0001, L=.0002) or more widely (f_root=0.5, D=.001, T.001, L=.002),
-  * ORFan genes typically restricted to one or a few genomes, but often poping in and out genomes (f_root=.01, D=0, T.002, L=.002),
-  * or (breaking the balance of gains and losses) an invasive transposon (f_root=.01, D=0.001, T.001, L=.001).
+By setting this frequency at the root and using DTL rates that have a null sum (D + T - L = 0, thus expecting constant genome size), it is straightforward to implement classes of genes that evolve while maintaining gene class-specific expected frequencies, e.g.:
+  * core genes with freq fluctuating narrowly around 1 (f_root=1, D=.0001, T=.0001, L=.0002),
+  * accessory genes with freq fluctuating within 0-1 interval moderately (f_root=.5, D=.0001, T=.0001, L=.0002) or more widely (f_root=.5, D=.001, T=.001, L=.002),
+  * ORFan genes typically restricted to one or a few genomes, but often poping in and out genomes (f_root=.01, D=0, T=.002, L=.002),
+  * or (breaking the balance of gains and losses) an invasive transposon (f_root=.01, D=.001, T=.001, L=.001).
 
 Requirements 
 ------------
@@ -72,7 +72,7 @@ for k in range(ngenes):
 
 ```
 
-Profiles of gene evolution with rates and expected root frequency can be provided either as a dict object, or through a key name corresponding to a typical gene class, or through an input JSON file.
+Profiles of gene evolution with rates and expected root frequency can be provided either as a dict object, or through a key name corresponding to a typical gene class, or through an input JSON file ([example](https://github.com/flass/FwdTreeSim/blob/master/examples/DTLprofiles.json)).
 Profiles also allow to set schedules of time heterogeneity in the process, e.g. with early family expansion by duplication, or later burst of transfers.
 ```python
 
@@ -93,7 +93,7 @@ dtlprof = IOsimul.MetaSimulProfile(profiles=[(n, IOsimul.DTLSimulProfile(**dprof
 
 # or more simply, using keyword handles
 geneclassprof = [(200, 'core'), (200, 'accessory-slow'), (600, 'orfan-fast')]
-dtlprof = IOsimul.MetaSimulProfile(profiles=[(n, IOsimul.DTLSimulProfile(type=t)) for n,t in exsampleprof])
+dtlprof = IOsimul.MetaSimulProfile(profiles=[(n, IOsimul.DTLSimulProfile(type=t)) for n,t in geneclassprof])
 
 # simulate with one of those profiles
 bddtlsim = simulators.DTLtreeSimulator(model=bddtlmodel, refsimul=moransim, profile=dtlprof.sampleprofile(verbose=True))
