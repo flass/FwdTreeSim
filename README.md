@@ -42,7 +42,7 @@ This library is implemented in pure Python (compatible with Python versions 2.7.
 Installation
 ------------
 
-First clone the git repository:
+First open a command-line terminal (hereusing a bash shell) and clone the git repository:
 ```bash
 # replace '/path/to/repo' by the path where you decide to clone the respective repositories
 cd /path/to/repo
@@ -57,9 +57,10 @@ export PYTHONPATH=$PYTHONPATH:/path/to/repo
 Usage
 -----
 
-The set-up and execution of the simulation is fully scriptable, with the possibility of providing various levels of detail and complexity in the simulated pangenome history.
+The set-up and execution of the simulation is fully scriptable (Python environment), with the possibility of providing various levels of detail and complexity in the simulated pangenome history.
 
 ```python
+#!/usr/bin/python
 from FwdTreeSim import models, simulators, IOsimul
 
 ## simulate the species tree
