@@ -7,8 +7,10 @@ __author__ = "Florent Lassalle <florent.lassalle@imperial.ac.uk>"
 __date__ = "27 July 2016"
 __credits__ = """Leonor Palmeira and Laurent Guéguen for initiating the tree2.Node module."""
 
-from FwdTreeSim import IOsimul
-
+from FwdTreeSim import IOsimul, models, simulators
+import copy
+import random
+import numpy as np
 
 genetypes = ['core', 'accessory-slow', 'orfan-slow', 'accessory-fast', 'orfan-fast']
 
@@ -18,51 +20,189 @@ genecontentprofiles = {'chromosome':{'core':0.5, 'accessory-slow':0.15, 'orfan-s
 						  'plasmid':{'core':0.0, 'accessory-slow':0.35, 'orfan-slow':0.1, 'accessory-fast':0.1, 'orfan-fast':0.35}, \
 						  'chromid':{'core':0.3, 'accessory-slow':0.25, 'orfan-slow':0.1, 'accessory-fast':0.1, 'orfan-fast':0.15} \
 					  }
+					  
+repliratecorrectors = {'chromosome':{'rdup':1,'rtrans':1,'rloss':1} 'plasmid':{'rdup':1,'rtrans':2,'rloss':2}, 'chromid':{'rdup':1,'rtrans':1.5,'rloss':1.5}}
+
+explinitrepliprofiles = [('chromosome', 'c1', True, 8000, 1), ('plasmid', 'p1', True, 500, 0.1), ('plasmid', 'p2', True, 500, 0.1), ('plasmid', 'p3', True, 500, 0.1), ('plasmid', 'p4',True,  500, 0.1)]
 
 ### not functional ; still under development
 
 class Pangenome(object):
-	"""Top simulation object, includes all the genomes and gene families"""
-	def __init__(self, speciessim, lgenefams=[], t=0, **kwargs):
+	"""Top simulation object, includes all the genomes and gene families
+	
+	Initially, all genomes in the pangenome have the same syntenic structure, even though not the same gene complement
+	(i.e. the gene family order is the same on the common genomic backbone, but only a fraction of gene families are present in each genomes).
+	The same applies to replicons.
+	
+	"""
+	def __init__(self, refsimul, lgenefams=[], t=0, **kwargs):
 		verbose = kwargs.get('verbose', !kwargs.get('silent', False))
 		# the species simulation at time t is taken to define the starting lineages in which to distribute gene families
-		self.speciessim = speciessim
 		self.t = t
-		self.size = len(lgenefamsim) if lgenefamsim else kwargs.get('size', 10000)
-		if lgenefams:
-			self.genefams = lgenefams
-		else:
-			panprofile = kwargs.get('panprofile', IOsimul.MetaSimulProfile(profiles=[(p*self.size, IOsimul.DTLSimulProfile(type=t)) for t,p in genecontentprofiles['chromosome'].iteritems()]))
-			self.genefams = []
-			for n in range(self.size):
+		self.refsimul = refsimul
+		self.timeslices = refsimul.get_timeslices()
+		self.lineages = refsimul.trees
+		self.treeroot = refsimul.treeroot
+		self.refconbran = refsimul.contempbranches
+		self.popsize = refsimul.popsize
+		
+		connectlen = kwargs.get('connectlen', 0)
+		
+		# list of initial replicons' properties ; provide index for matrix below
+		self.initrepliprofiles = kwargs.get('initrepliprofiles', explinitrepliprofiles)
+		# presence/absence matrix for initial replicons (lineage roots, initial replicons)
+		self.init_repli_phyloprofile = np.zeros((self.popsize, len(initrepliprofiles)), dtype=bool)
+		# presence/absence matrix for gene families (lineage roots, gene families)
+		self.init_gene_phyloprofile = np.zeros((self.popsize, sum([x[3] for x in initrepliprofiles)), dtype=bool)
+		# genome-wide list of gene families; provide index for matrix above
+		self.genefams = []
+		# slice boundaries of the list of gene families above giving the replicon-specific gene family content
+		self.repligenefams = []
+		
+		
+		self.refsimul.labeltreenodes(onlyExtants=False)
+		# attach empty genomes to the roots of lineages in reference species history
+		for l, lineageroot in enumerate(self.lineages):
+			lineageroot.genome = Genome([], name=lineageroot.label())
+			
+			
+		# Initial set of replicons to be observed in this pangenome, defined as (type, circularity, name, number of distinct gene families, expected frequency at root)
+		gg = -1 # genome-wide gene family index
+		rlast = 0
+		for r, initrepliprof in enumerate(self.initrepliprofiles):
+			rtype, rname, rcirc, rsize, refreq = initrepliprof
+			repligenefamslice = (rlast, rlast+rsize)
+			self.repligenefams.append(repligenefamslice)
+			rlast = rlast+rsize
+			
+			# determine the occurence profile of these replicons in species lineages
+			#~ self.init_repli_phyloprofile[rname] = [n for n in range(refsimul.popsize) if random.random() < rfreq]
+			for n in range(self.popsize)
+				self.init_repli_phyloprofile[n, r] = random.random() < rfreq
+			
+			repliprofile = IOsimul.MetaSimulProfile(profiles=[(p, IOsimul.DTLSimulProfile(type=t)) for t,p in genecontentprofiles[rtype].iteritems()])
+			for rg in range(rsize):  # replicon-specific gene family index
+				gg += 1
+				gfname = 'g%06d'%gg
 				# initiate a gene simulation
 				bddtlmodel = models.BirthDeathDTLModel(self.size)
-				bddtlprof = panprofile.sampleprofile(verbose=verbose)
-				bddtlsim = simulators.DTLtreeSimulator(model=bddtlmodel, refsimul=moransim, profile=bddtlprof, noTrigger=True)
+				bddtlprof = repliprofile.sampleprofile(verbose=verbose)
+				# do not pick gene lineages yet
+				bddtlsim = simulators.DTLtreeSimulator(model=bddtlmodel, refsimul=moransim, profile=bddtlprof, noTrigger=True, genelineages=False)
+				# generate gene presence distribution, but not the trees
+				#~ genefam_phyloprofile = bddtlsim.pickgenelineages(return_index=True)
+				self.init_gene_phyloprofile[bddtlsim.pickgenelineages(return_index=True),gg] = True
+				# intersects the gene presence profile with the replicon presence profile
+				#~ self.init_gene_phyloprofile[gfname] = list(set(genefam_phyloprofile) & set(self.init_repli_phyloprofile[rname]))
+				#~ self.init_gene_phyloprofile[gfname].sort()
+				self.init_gene_phyloprofile[,gg] = np.logical_and(self.init_gene_phyloprofile[,gg], self.init_repli_phyloprofile[,r])
+				# now generates the lineage trees for the gene family
+				bddtlsim.pickgenelineages(from_index=list(self.init_gene_phyloprofile[gfname].nonzero()[0]))
+				# and connect those trees
+				bddtlsim.connecttrees(l=connectlen)
+				
 				# create a gene family
-				genefam = GeneFam(name='g%06d'%n, type=bddtlprof.type, history=bddtlsim)
+				genefam = GeneFam(name=gfname, type=bddtlprof.type, history=bddtlsim)
+				# add fam to general ledger of gene families
 				self.genefams.append(genefam)
+		
 			
+			# fill-in genomes attached to the roots of lineages in reference species history
+			for l, lineageroot in enumerate(self.lineages):
+				Gname = lineageroot.label()
+				# create empty replicon
+				repli = Replicon(lgene=[], type=rtype, name="%s_%s"%(Gname, rname), circular=rcirc)
+				# collect gene families present in that genome
+				gfis = self.init_gene_phyloprofile[l,].nonzero()[0]
+				for gfi in gfis:
+					if not (gfi >= repligenefamslice[0] and gfi < repligenefamslice[1]):
+						# filter gene fams out of replicon
+						continue
+					# create gene
+					gf = self.genefams[gfi]
+					gene = Gene(treenode=gf.history.treeroot[Gname], name="%s_%s_%d"%(Gname, rname, g))
+					# attach gene to replicon
+					repli.insert_gene(gene)
+				# attach replicon to genome
+				lineageroot.genome.add_replicon(repli)
+			
+	def __iter__(self):
+		"""iterator yielding replicons"""
+		for genefam in self.genefams:
+			yield genefam
+			
+	def branch_get_genome(self, cb, t):
+		
 
 class Genome(object):
 	"""the genome map of a single lineage"""
-	def __init__(self, dreplicons):
-		self.dreplicons = dreplicons
+	def __init__(self, lreplicons):
+		self.lreplicons = lreplicons
+		self.name = kwargs.get('name')
+		
+	def __iter__(self):
+		"""iterator yielding replicons"""
+		for repli in self.lreplicons:
+			yield repli
+			
+	def __getitem__(self, key):
+		for repli in self:
+			if repli.name==key:
+				return repli
+		else:
+			raise KeyError, "no replicon named '%s' in this genome instance"%key
 		
 	def get_all_genes(self):
 		lgenes = []
-		for r in self.dreplicons.values():
-			lgenes += r.lgenes
+		for repli in self:
+			lgenes += repli.lgenes
 		return lgenes
+			
+	def __len__(self):
+		"""genome size in gene number"""
+		return len(self.get_all_genes())
+		
+	def __copy__(self):
+		
+			
+	def add_replicon(self, repli):
+		"""add replicon due to large-scale transfer event"""
+		self.lreplicons.append(repli)
+		
+	def cleanup_empty_replicon(self):
+		if len(self)==0:
+			raise ValueError, "Genome named '%s' reached a void state!"%self.name
+		i = 0
+		while i < len(self.lreplicons):
+			if len(self.lreplicons[i])==0:
+				del self.lreplicons[i]
+			else:
+				i += 1
+		
+				
 		
 class Replicon(object):
-	""""""
+	"""Representation of the DNA macromolecules bearing genes in a bacterial genomes (replicon = replication unit)
+	
+	Replicons objects are part of a genome object, and are made as an orderred set (a list) of genes, 
+	which can be rearranged and in/from which genes can be inserted/deleted.
+	"""
 	
 	def __init__(self, lgenes, circular=True, **kwargs):
 		self.lgenes = lgenes
 		self.circular = circular
 		self.name = kwargs.get('name')
 		self.type = kwargs.get('type', "chromosome")
+		self.ratecorrectors = kwargs.get('ratecorrectors', repliratecorrectors[self.type])
+	
+	def __iter__(self):
+		"""iterator yielding genes"""
+		for gene in self.lgene:
+			yield gene
+			
+	def __len__(self):
+		"""replicon size in gene number"""
+		return len(self.lgenes)
 		
 	def insert_gene(self, gene, locus=None):
 		"""add gene to the ordered list of genes; by defautls at its end, or if specified at its index 'locus'"""
@@ -152,8 +292,8 @@ class Gene(object):
 class GeneFam(object):
 	""""""
 	
-	def __init__(self, treenode, **kwargs):
+	def __init__(self, genesim, **kwargs):
 		self.name = kwargs.get('name')
 		self.type = kwargs.get('type', "core")
-		self.history = kwargs.get('genesim')
+		self.history = genesim
 		
