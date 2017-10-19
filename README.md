@@ -42,13 +42,15 @@ This library is implemented in pure Python (compatible with Python versions 2.7.
 Installation
 ------------
 
-Clone the git repository and then simply add the path to the libraries to your PYTHONPATH environment variable (ideally save this in your `~/.bashrc` or `~/.bash_profile`):
+First clone the git repository:
 ```bash
 # replace '/path/to/repo' by the path where you decide to clone the respective repositories
 cd /path/to/repo
 git clone https://github.com/flass/tree2
 git clone https://github.com/flass/FwdTreeSim
-
+```
+Then simply add the path to the libraries to your PYTHONPATH environment variable (ideally save this in your `~/.bashrc` or `~/.bash_profile`):
+```bash
 export PYTHONPATH=$PYTHONPATH:/path/to/repo
 ```
 
