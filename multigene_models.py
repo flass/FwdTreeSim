@@ -72,13 +72,14 @@ class BlockBirthDeathDTLModel(models.BirthDeathDTLModel):
 			
 			for gene in genome:
 				# consider events exclusive, each proba is counted cummulatively so every draw in [0;1] can only point to one event type
-				if random.random() <= self.rloss:
+				res = random.random()
+				if res <= self.rloss:
 					evtype = 'loss'
 					self.lossEvent(cb, timeslice)
-				elif random.random() <= self.rloss+self.rdup:
+				elif res <= self.rloss+self.rdup:
 					evtype = 'dupl'
 					self.duplicationEvent(cb, timeslice)
-				elif random.random() <= self.rloss+self.rdup+self.rtrans:
+				elif res <= self.rloss+self.rdup+self.rtrans:
 					evtype = 'trans'
 					# pick a recipient branch from the current REFERENCE tree branches
 					rec = random.choice(currrefbranches)
