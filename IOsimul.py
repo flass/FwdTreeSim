@@ -176,8 +176,9 @@ class SimulLogger(object):
 		'table2fields' argument is a dict with the desired database's table names as keys 
 		and a list of table fields as values.
 		"""
+		table2fields = {}
 		if simultype:
-			if 'DTLtreeSimulator' in simultype:
+			if str(simultype) == "<class 'FwdTreeSim.simulators.DTLtreeSimulator'>":
 				table2fields = {'species_tree_record':['species_branch_name', 'Duplications', 'Transfers', 'Losses', 'Originations', 'copies'], \
 								'undated_transfer_record':['from', 'to', 'freq'], \
 								'event_record':['evt_type', 'from_species_rank', 't_out', 'from_species_branch_name', 'from_gene_node_id', 'to_species_rank', 't_back', 'to_species_branch_name', 'to_gene_node_id'] \
@@ -200,7 +201,7 @@ class SimulLogger(object):
 			tabledump.close()
 
 	def DTLsingleEventLog(self, evt):
-		self.foutdict['event_record'].write('\t'.join([models.DTLevent.etshorts[evt.eventtype], evt.donrefnode.nodeid(), evt.t, ])+'\n')
+		self.foutdict['event_record'].write('\t'.join([str( evt.etshorts[evt.eventtype] ) , str(evt.donrefnode.nodeid()), str( evt.t ) , ])+'\n') ## W : fixed str() and call to models module
 		
 	def DTLsummaryEventLog(self, evt):
 		self.foutdict['undated_transfer_record']
