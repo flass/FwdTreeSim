@@ -477,6 +477,7 @@ class BirthDeathDTLModel(MultipleTreeModel):
 		t = simul.t
 		currrefbranches = simul.refconbran[t]
 		timeslice = simul.reftimeslices[t]
+		#print t , timeslice, simul.reftimeslices 
 		levents = []
 		devents = {}
 		trec = {}
