@@ -225,7 +225,11 @@ class BaseMoranProcess(BaseModel):
 		# first grow branches
 		newlen = self.newlen(t)
 		for leaf in extants:
-			leaf += newlen	# add up on self.__l attribute
+			lg = leaf.lg()
+			if lg is None:
+				lg = 0.
+			lg += newlen
+			leaf.set_lg( lg )	# add up on self.__l attribute
 		# pick a branch among the N (hypothetical) branches for speciation
 		ibirth = random.randint(0, self.popsize-1)
 		# when modelling the full Moran process (MoranProcess class instance), ibirth should always be within range(len(extants))
@@ -356,11 +360,17 @@ class BirthDeathDTLModel(MultipleTreeModel):
 		
 	@staticmethod
 	def midTimesliceOnBranch(node, timeslice):
-		"""Given a reference tree branch and a tuple containing the (start, end) time coordinates of a timeslice, returns the height of the branch if it was to be shortened at the middle time of the timeslice"""
-		lgabove = node.distance_root() - node.lg() # time above the branch
+		"""
+		Given a reference tree branch and a tuple containing the (start, end) time coordinates of a timeslice, 
+		returns the height of the branch if it was to be shortened at the middle time of the timeslice
+		"""
+		
+		lgabove = node.distance_root(nullBranchesAsZeroLength=True) - node.lg() # time above the branch ##W: need to set nullBranchesAsZeroLength to True to avoid the error raised because root doesn't have a branch length
+		
 		lgonbranch = (sum(timeslice)/2) - lgabove	# height on the branch to match the midtime of the timeslice
+		
 		if not lgonbranch >= 0:
-			raise ValueError, "lgabove = node.distance_root() - node.lg() = %f - %f\nlgonbranch = sum(%s)/2 - %f = %f"%(node.distance_root(), node.lg(), repr(timeslice), lgabove, lgonbranch)
+			raise ValueError, "lgabove = node.distance_root() - node.lg() = %f - %f\nlgonbranch = sum(%s)/2 - %f = %f"%(node.distance_root(nullBranchesAsZeroLength=True), node.lg(), repr(timeslice), lgabove, lgonbranch)
 		return lgonbranch
 		
 	@classmethod
@@ -426,9 +436,11 @@ class BirthDeathDTLModel(MultipleTreeModel):
 			rmidt = cls.midTimesliceOnBranch(recipientnode, timeslice)
 		except ValueError, e:
 			sys.stdout.flush()
-			sys.stderr.write('recipientnode: %s\n'%recipientnode.label())
-			sys.stderr.write('donornode: %s\n'%donornode.label())
-			sys.stderr.write('fat: %s; is root: %s\n'%(fat.label(), str(fat.is_root())))
+			sys.stderr.write(str(e))
+			sys.stderr.write('recipientnode: %s; is root: %s\n'%(recipientnode.label(), str(recipientnode.is_root())))
+			sys.stderr.write('donornode: %s; is root: %s\n'%(donornode.label(), str(donornode.is_root())))
+			if not fat is None:
+				sys.stderr.write('fat: %s; is root: %s\n'%(fat.label(), str(fat.is_root())))
 			sys.stderr.write(str(donornode.go_root())+'\n')
 			#~ donornode.go_root().seaview()
 			raise ValueError, e
@@ -465,6 +477,7 @@ class BirthDeathDTLModel(MultipleTreeModel):
 		t = simul.t
 		currrefbranches = simul.refconbran[t]
 		timeslice = simul.reftimeslices[t]
+		#print t , timeslice, simul.reftimeslices 
 		levents = []
 		devents = {}
 		trec = {}

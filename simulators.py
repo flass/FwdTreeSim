@@ -166,7 +166,7 @@ class BaseTreeSimulator(object):
 			if (set(node.get_leaf_labels()) - sext):
 				# some species below this nodes are extant
 				lwithdescent.append(node.label())
-		lwithdescent -= set(sampled)
+		lwithdescent =  list( set(lwithdescent) - set(sampled) ) ## W : this is not elegant, but at least it works.
 		return lwithdescent
 	
 	def prepare_write_endlog(self, connecttrees=10):
@@ -388,13 +388,20 @@ class MultipleTreeSimulator(BaseTreeSimulator):
 		print "\ntime:", self.t
 		
 	def connecttrees(self, l=0, returnCopy=False):
-		"""create a common root for all trees in the population, with branches of lenght l
+		"""
+		create a common root for all trees in the population, with branches of lenght l
 		
 		store the new single tree object in new attirbute 'treeroot'.
 		"""
-		if returnCopy or (not self.treeroot): treeroot = _connecttrees(self.trees, l=l, returnCopy=returnCopy)
-		else: treeroot = self.treeroot
-		if (not returnCopy) and (not self.treeroot): self.treeroot = treeroot
+
+		if returnCopy or ( not hasattr(self, 'treeroot')): 
+			treeroot = _connecttrees(self.trees, l=l, returnCopy=returnCopy)
+		else: 
+			treeroot = self.treeroot
+
+		if (not returnCopy) and (not hasattr(self, 'treeroot')): 
+			self.treeroot = treeroot
+
 		return treeroot
 	
 	################################	
@@ -451,7 +458,7 @@ class DTLtreeSimulator(MultipleTreeSimulator):
 	def __init__(self, model, noTrigger=False, **kwargs):
 		print 'invoke _DTLtreeSimulator__init__'
 		print 'kwargs:', kwargs
-		super(DTLtreeSimulator, self).__init__(model=model, noTrigger=True, allow_multiple=False, **kwargs) 
+		super(DTLtreeSimulator, self).__init__(model=model, noTrigger=True, allow_multiple=kwargs.get('allow_multiple',False), **kwargs) ##W : dynamic allow_multiple rather than static False
 		# automatic checkdata() and evolve(ngen) triggers from parent classses are deactivated by noTrigger=True
 		#~ self.rootfreq = kwargs['rootfreq'] # frequency a which the gene family is found at the root of each tree in the multiple reference tree set (species lineages from a Moran process)
 		refsimul = kwargs.get('refsimul')
@@ -480,7 +487,7 @@ class DTLtreeSimulator(MultipleTreeSimulator):
 		
 		self.profile = kwargs.get('profile', IOsimul.DTLSimulProfile(type='core'))
 		self.genetrees = []
-		self.pickgenelineages(allow_multiple=allow_multiple)
+		self.pickgenelineages(allow_multiple= kwargs.get('allow_multiple',False) ) ## W : go search in kwargs rather than direct call to unknown
 		
 		if not noTrigger:
 			# self.checkdata()
@@ -545,14 +552,14 @@ class DTLtreeSimulator(MultipleTreeSimulator):
 			levents, dnode2eventids, trec = self.model.stepforward(currbranches, self, evtidgen=evtidgen)
 			for evt in levents:
 				# record the events sent/received by surviving lineages
-				for refnode in [evt.refrecnode, evt.refdonnode]:
+				for refnode in [evt.recrefnode, evt.donrefnode]:
 					if refnode in self.refnodeswithdescent:
 						self.extantevents.append(evt.evtid())
 						break # for refnode loop
 				if self.logger:
 					# record on log what happened
 					# write out all events
-					self.logger.DTLeventLog(evt)
+					self.logger.DTLsingleEventLog(evt) ## W : replaced :  DTLEventLog -> DTLsingleEventLog
 			self.update_records(levents, dnode2eventids, currbranches)
 			self.transferrec.update(trec)
 			# check if simulation should stop
