@@ -225,11 +225,7 @@ class BaseMoranProcess(BaseModel):
 		# first grow branches
 		newlen = self.newlen(t)
 		for leaf in extants:
-			lg = leaf.lg()
-			if lg is None:
-				lg = 0.
-			lg += newlen
-			leaf.set_lg( lg )	# add up on self.__l attribute
+			leaf += newlen	# add up on self.__l attribute
 		# pick a branch among the N (hypothetical) branches for speciation
 		ibirth = random.randint(0, self.popsize-1)
 		# when modelling the full Moran process (MoranProcess class instance), ibirth should always be within range(len(extants))
