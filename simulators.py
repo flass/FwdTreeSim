@@ -23,6 +23,15 @@ def _connecttrees(trees, l=0, returnCopy=False):
 		else: t = tree.go_root()
 		treeroot.link_child(t, newlen=tree.lg()+l)
 	return treeroot
+	
+def _get_timeslices(t, times):
+	ts = []
+	for t in range(t):
+		low = 0 if t==0 else ts[t-1][1] # t low bound is t-1 up bound
+		up = low + times[t]
+		ts.append((low, up))
+	return ts
+	
 
 # for dumppickle() funciton; special case of simulators.BaseTreeSimulator class
 dumpwarningmsg =  "cannot pickle generator objects, have to delete event id generator 'self.eventidgen' first\n"
@@ -106,12 +115,7 @@ class BaseTreeSimulator(object):
 		return 0
 		
 	def get_timeslices(self):
-		ts = []
-		for t in range(self.t):
-			low = 0 if t==0 else ts[t-1][1] # t low bound is t-1 up bound
-			up = low + self.times[t]
-			ts.append((low, up))
-		return ts
+		return _get_timeslices(self.t, self.times)
 		
 	def update_records(self, levents, dnode2eventids, contempbranches, brlen=None):
 		leventids = []
@@ -151,7 +155,11 @@ class BaseTreeSimulator(object):
 			livetree.set_lg(0)
 		return livetree
 		
-	def get_tree(self, connecttrees=10):
+	def get_tree(self, connecttrees=0):
+		"""return simulated tree (collection) as a single tree
+		
+		i.e. if there are multiple trees, a single connecting root to all trees is enforced
+		"""
 		if hasattr(self, 'trees'):
 			self.connecttrees(l=connecttrees, returnCopy=False)
 			return self.treeroot
@@ -166,7 +174,7 @@ class BaseTreeSimulator(object):
 			if (set(node.get_leaf_labels()) - sext):
 				# some species below this nodes are extant
 				lwithdescent.append(node.label())
-		lwithdescent =  list( set(lwithdescent) - set(sampled) ) ## W : this is not elegant, but at least it works.
+		lwithdescent =  [l for l in lwithdescent if (not l in sampled)] # preserves the order ; not sure why i do remove these nodesin the first place...
 		return lwithdescent
 	
 	def prepare_write_endlog(self, connecttrees=10):
@@ -387,21 +395,29 @@ class MultipleTreeSimulator(BaseTreeSimulator):
 	def verbevolve(self, devents):
 		print "\ntime:", self.t
 		
-	def connecttrees(self, l=0, returnCopy=False):
-		"""
-		create a common root for all trees in the population, with branches of lenght l
+	def connecttrees(self, l=0, returnCopy=False, treeattr='trees'):
+		"""create a common root for all trees in the population, with branches of lenght l
 		
 		store the new single tree object in new attirbute 'treeroot'.
 		"""
-
-		if returnCopy or ( not hasattr(self, 'treeroot')): 
-			treeroot = _connecttrees(self.trees, l=l, returnCopy=returnCopy)
+		l = float(l)
+		assert l>=0
+		trees = getattr(self, treeattr)
+		if returnCopy:
+			treeroot = _connecttrees(trees, l=l, returnCopy=returnCopy)
+		elif not hasattr(self, 'treeroot'): 
+			treeroot = _connecttrees(trees, l=l, returnCopy=returnCopy)
+			self.treeroot = treeroot
+			if treeattr=='genetrees' and hasattr(self, 'refroot'):
+				# for the moment means isinstance(self, DTLTreeSimulator) is True,
+				# but could be extanded to other classes with gene trees...
+				self.treeroot.ref = self.refroot
+			if l>0:
+				# update self.times atribute
+				for i, ti in enumerate(self.times):
+					self.times[i] = ti + l
 		else: 
 			treeroot = self.treeroot
-
-		if (not returnCopy) and (not hasattr(self, 'treeroot')): 
-			self.treeroot = treeroot
-
 		return treeroot
 	
 	################################	
@@ -464,20 +480,20 @@ class DTLtreeSimulator(MultipleTreeSimulator):
 		refsimul = kwargs.get('refsimul')
 		if refsimul:
 			self.refsimul = refsimul	# keep hard link to reference/species tree simulator object; better pickle them together!
-			self.refroot = getattr(refsimul, 'treeroot', None)
+			self.refroot = refsimul.connecttrees(returnCopy=False)	# enforce existence of a root in reference simulation
 			self.reftrees = refsimul.trees
 			self.refconbran = refsimul.contempbranches
-			self.reftimeslices = refsimul.get_timeslices()
 			self.refextincts = refsimul.extincts
 			self.ngen = refsimul.t - 1
 			self.times = refsimul.times
 		else:
 			self.reftrees = kwargs['reftrees']
 			self.refconbran = kwargs['refcontempbranches']
-			self.reftimeslices = kwargs['reftimeslices']
 			self.refextincts = kwargs['refextincts']
 			self.times = kwargs['times']
 			self.ngen = kwargs.get('ngen')
+			
+		self.reftimeslices = _get_timeslices(len(self.times), self.times)
 		
 		# generate a list of nodes of the reference tree 
 		self.refnodeswithdescent = kwargs.get('refnodeswithdescent', refsimul.get_nodes_with_descendants())
@@ -487,12 +503,12 @@ class DTLtreeSimulator(MultipleTreeSimulator):
 		
 		self.profile = kwargs.get('profile', IOsimul.DTLSimulProfile(type='core'))
 		self.genetrees = []
-		self.pickgenelineages(allow_multiple= kwargs.get('allow_multiple',False) ) ## W : go search in kwargs rather than direct call to unknown
+		self.pickgenelineages( allow_multiple=kwargs.get('allow_multiple',False) ) ## W : go search in kwargs rather than direct call to unknown
 		
 		if not noTrigger:
 			# self.checkdata()
 			# if ngen specified, launch simulation for ngen iterations
-			if self.ngen: self.evolve(self.ngen)
+			if self.ngen: self.evolve(self.ngen, connecttrees=kwargs.get('connecttrees', False))
 			
 	def pickgenelineages(self, allow_multiple=False, return_index=False, from_index=None):
 			"""with a proba rootfreq, copy a gene tree from each reference tree
@@ -512,14 +528,14 @@ class DTLtreeSimulator(MultipleTreeSimulator):
 				if allow_multiple: print "Warning: 'allow_multiple' option is on, and expected root frequency of gene is > 1  => !!experimental!!"
 				else:  raise ValueError, "Expected root frequency of gene should be <= 1 (for rootfreq > 1, must turn on 'allow_multiple' option => !!experimental!!)"
 			p = float(self.profile.rootfreq)
+			l = float(self.profile.rootlen)
 			while p >= 0:
 				if return_index: 
 					genetrees += [n for n in range(len(self.reftrees)) if random.random() < p]
 				else:
 					if from_index:
 						for n in from_index:
-							genetrees.append(self.reftrees[n])
-						#~ genetrees += [rt.deepcopybelow(keep_lg=True, add_ref_attr=True) for n, rt in enumerate(self.reftrees) if n in from_index]
+							genetrees.append(self.reftrees[n].deepcopybelow(keep_lg=True, add_ref_attr=True))
 					else:
 						genetrees += [rt.deepcopybelow(keep_lg=True, add_ref_attr=True) for rt in self.reftrees if random.random() < p]
 				p -= 1.0
@@ -571,24 +587,23 @@ class DTLtreeSimulator(MultipleTreeSimulator):
 		else:
 			rval = 0
 		return rval
-
+		
+	def finish(self, **kwargs):
+		if kwargs.get('connecttrees', False):
+			treeroot = self.connecttrees(l=self.profile.rootlen, returnCopy=False)
+		multreelen = kwargs.get('multreelen', 0)
+		if multreelen:
+			# could be implemented in the profile
+			assert multreelen>0
+			treeroot *= multreelen
 		
 	def connecttrees(self, l=0, returnCopy=False):
 		"""create a common root for all gene trees in the population, with branches of lenght l
 		
 		store the new single tree object in new attirbute 'treeroot'.
 		gene tree-specific method ads the ref attibute to specie tree root.
-		"""		
-		treeroot = self.genetrees[0].newnode()
-		for genetree in self.genetrees:
-			if returnCopy: t = copy.deepcopy(genetree.go_root())
-			else: t = genetree.go_root()
-			treeroot.link_child(t, newlen=l)
-		if returnCopy:
-			return treeroot
-		else:
-			self.treeroot = treeroot
-			self.treeroot.ref = self.refroot
+		"""
+		return super(DTLtreeSimulator, self).connecttrees(l=l, returnCopy=returnCopy, treeattr='genetrees')
 		
 	def labeltreenodes(self, dictprefix=nodelabelprefix, onlyExtants=True, silent=True):
 		super(DTLtreeSimulator, self).labeltreenodes(dictprefix=dictprefix, treesattrname='genetrees', onlyExtants=onlyExtants, silent=silent)

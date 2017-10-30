@@ -74,22 +74,22 @@ class DTLSimulProfile(SimulProfile):
 	use shorthands such as 'core', 'accessory-slow', or 'orfan-fast' to access pre-defined profiles. Profiles can be created and stored in the class attribute
 	"""
 	dtypes = { \
-	           'core' : { 'rootfreq':1, 'rateschedule': {0:{'rdup':.0001, 'rtrans':.0001, 'rloss':.0002}} }, \
-	           'accessory-slow' : { 'rootfreq':0.5, 'rateschedule': {0:{'rdup':.0001, 'rtrans':.0001, 'rloss':.0002}} }, \
-	           'accessory-fast' : { 'rootfreq':0.5, 'rateschedule': {0:{'rdup':.001, 'rtrans':.001, 'rloss':.002}} }, \
-	           'orfan-slow' : { 'rootfreq':0.01, 'rateschedule': {0:{'rdup':.0001, 'rtrans':.0001, 'rloss':.0002}} }, \
-	           'orfan-fast' : { 'rootfreq':0.01, 'rateschedule': {0:{'rdup':.001, 'rtrans':.001, 'rloss':.002}} } \
+	           'core' : { 'rootfreq':1, 'rootlen':20, 'rateschedule': {0:{'rdup':.0001, 'rtrans':.0001, 'rloss':.0002}} }, \
+	           'accessory-slow' : { 'rootfreq':0.5, 'rootlen':20, 'rateschedule': {0:{'rdup':.0001, 'rtrans':.0001, 'rloss':.0002}} }, \
+	           'accessory-fast' : { 'rootfreq':0.5, 'rootlen':50, 'rateschedule': {0:{'rdup':.001, 'rtrans':.001, 'rloss':.002}} }, \
+	           'orfan-slow' : { 'rootfreq':0.01, 'rootlen':20, 'rateschedule': {0:{'rdup':.0001, 'rtrans':.0001, 'rloss':.0002}} }, \
+	           'orfan-fast' : { 'rootfreq':0.01, 'rootlen':50, 'rateschedule': {0:{'rdup':.001, 'rtrans':.001, 'rloss':.002}} } \
 	          }
 	
 	def __init__(self, **kwargs):
 		print 'invoke simulator.DTLSimulProfile.__init__()'
 		print 'kwargs', kwargs
 		super(DTLSimulProfile, self).__init__(**kwargs) 
-		self.type = kwargs.get('type')
+		self.type = kwargs.get('type', 'core')
 		self.rootfreq = kwargs.get('rootfreq')
-		if self.type:
-			if not self.rateschedule: self.rateschedule = DTLSimulProfile.dtypes[self.type]['rateschedule']
-			if not self.rootfreq: self.rootfreq = DTLSimulProfile.dtypes[self.type]['rootfreq']
+		self.rootlen = kwargs.get('rootlen')
+		for attr in ['rateschedule', 'rootfreq', 'rootlen']:
+			if not getattr(self, attr): setattr(self, attr, DTLSimulProfile.dtypes[self.type][attr])
 
 	
 class MetaSimulProfile(object):
@@ -201,7 +201,7 @@ class SimulLogger(object):
 			tabledump.close()
 
 	def DTLsingleEventLog(self, evt):
-		self.foutdict['event_record'].write('\t'.join([str( evt.etshorts[evt.eventtype] ) , str(evt.donrefnode.nodeid()), str( evt.t ) , ])+'\n') ## W : fixed str() and call to models module
+		self.foutdict['event_record'].write('\t'.join([str( evt.etshorts[evt.eventtype] ) , str(evt.donrefnode.nodeid()), str( evt.t ) , ])+'\n')
 		
 	def DTLsummaryEventLog(self, evt):
 		self.foutdict['undated_transfer_record']
