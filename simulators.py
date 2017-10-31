@@ -600,7 +600,11 @@ class DTLtreeSimulator(MultipleTreeSimulator):
 			else:
 				m = float(multreelen)
 			if multreelen<=0: raise ValueError, "unvalid tree length multiplier value: %f; should have a value > 0"%(m)
-			treeroot *= m
+			if m!=1:
+				treeroot *= m
+				# update self.times atribute
+				for i, ti in enumerate(self.times):
+					self.times[i] = ti * m
 		return treeroot
 		
 	def connecttrees(self, l=0, returnCopy=False):
