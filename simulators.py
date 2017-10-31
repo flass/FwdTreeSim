@@ -12,6 +12,7 @@ import copy
 import random
 from FwdTreeSim import models, nodelabelprefix, IOsimul
 import tree2
+from numpy.random import gamma
 
 ### utilitary functions
 
@@ -140,7 +141,7 @@ class BaseTreeSimulator(object):
 	@staticmethod
 	def copy_prune_dead_lineages(tree, extincts, collapsenodes=False, trimroot=False):
 		"""removed branches leading to extinct lineages; require unique naming of all nodes!!!"""
-		livetree = tree.deepcopybelow(shallow_copy_attr=['ref', 'event'])
+		livetree = tree.deepcopybelow(shallow_copy_attr=['ref', 'event'], keep_lg=True)
 		lleaves = livetree.get_leaf_labels()
 		for leaf in extincts:
 			leaflab = leaf.label()
@@ -440,13 +441,13 @@ class MultipleTreeSimulator(BaseTreeSimulator):
 		if cache: self._extanttrees = extanttrees
 		return extanttrees
 
-	def get_extanttree(self, compute=True, addextincts=[], lentoroot=10, cache=True, collapsenodes=False, **kw):
+	def get_extanttree(self, compute=True, addextincts=[], lentoroot=0, cache=True, collapsenodes=False, **kw):
 		"""wrapper for get_extanttrees() methods; returns a COPY of the single root connecting all trees 'cleaned' of their dead branches ; NB: original tree will have all its nodes labelled afterward"""
 		if not compute: return self._extanttree
 		else:
 			extanttrees = self.get_extanttrees(compute=True, addextincts=addextincts, collapsenodes=collapsenodes, **kw) # possibly use a child class' method
 			# exclude null trees (None objects) before connecting them
-			extanttree = _connecttrees([t for t in extanttrees if t], l=lentoroot, returnCopy=False)
+			extanttree = self.connecttrees([t for t in extanttrees if t], l=lentoroot, returnCopy=False)
 			if cache: self._extanttrees = extanttrees
 			return extanttree
 		
@@ -591,11 +592,16 @@ class DTLtreeSimulator(MultipleTreeSimulator):
 	def finish(self, **kwargs):
 		if kwargs.get('connecttrees', False):
 			treeroot = self.connecttrees(l=self.profile.rootlen, returnCopy=False)
-		multreelen = kwargs.get('multreelen', 0)
+		multreelen = kwargs.get('multreelen', getattr(self.profile, 'multreelen', 0))
 		if multreelen:
-			# could be implemented in the profile
-			assert multreelen>0
-			treeroot *= multreelen
+			if type(multreelen) is tuple:
+				# implemented in the profile, format being: ('functionname', param1, pram2, ...)
+				m = eval(multreelen[0])(*multreelen[1:])
+			else:
+				m = float(multreelen)
+			if multreelen<=0: raise ValueError, "unvalid tree length multiplier value: %f; should have a value > 0"%(m)
+			treeroot *= m
+		return treeroot
 		
 	def connecttrees(self, l=0, returnCopy=False):
 		"""create a common root for all gene trees in the population, with branches of lenght l
@@ -611,7 +617,7 @@ class DTLtreeSimulator(MultipleTreeSimulator):
 	def copy_prune_dead_lineages(self, tree, collapsenodes=False, trimroot=False):
 		"""remove lineage ends that belong to extinct reference species (not loss events!); require unique labeling of all nodes!!!"""
 		if not tree: return None
-		livetree = tree.deepcopybelow(shallow_copy_attr=['ref', 'event'])
+		livetree = tree.deepcopybelow(shallow_copy_attr=['ref', 'event'], keep_lg=True)
 		lleaves = livetree.get_leaf_labels()
 		drefleaves = {}
 		for leaf in livetree.get_leaves():

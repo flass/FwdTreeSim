@@ -3,16 +3,20 @@
   "profiles": [
                { "ngenefams":20,
 				 "profile": {
-					          "rootfreq":1, "times": [0], "rates": [{"rdup":0.0001, "rtrans":0.0001, "rloss":0.0002}]  
+					          "rootfreq":1, 'rootlen':1, 'multreelen':('gamma', 2, 0.5), "times":[0], "rates":[{"rdup":0.0001, "rtrans":0.0001, "rloss":0.0002}]  
 					        }
 			   }, 
                { "ngenefams":50,
 				 "profile": { 
-					          "rootfreq":0.5, "times": [0, 100, 400], "rates": [
-					         	         	         	         	         	  {"rdup":0.0003, "rtrans":0.0001, "rloss":0.0004},
-					         	         	         	         	         	  {"rdup":0.0001, "rtrans":0.0001, "rloss":0.0002},
-					         	         	         	         	         	  {"rdup":0.0001, "rtrans":0.0005, "rloss":0.0005}
-					         	         	         	         	         	]
+					          "rootfreq":0.5, 
+					          'rootlen':20, 
+					          'multreelen':('gamma', 2, 1), 
+					          'times': [0, 100, 400], 
+					          'rates':[
+					         	       {"rdup":0.0003, "rtrans":0.0001, "rloss":0.0004},
+					         	       {"rdup":0.0001, "rtrans":0.0001, "rloss":0.0002},
+					         	       {"rdup":0.0001, "rtrans":0.0005, "rloss":0.0005}
+					         	      ]
 					        }
 			   }
              ]

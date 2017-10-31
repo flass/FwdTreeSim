@@ -20,6 +20,9 @@ def usage():
 	l += ["  __Species/Genomes population layer__:"]
 	l += ["\t-s  --popsize   int\t\tnumber of species to simulate in the underlying Moran process\t# default: 100."]
 	l += ["\t-g  --ngen      int\t\tnumber of generation for which the evolution is simulated\t# default: 1000."]
+	l += ["\t-c  --connect.all.lineages float\tthe multiple species lineage trees from a gene family population whill be connected at their root.", \
+	      crindent+"The length of branches of the star root is given by the argument, negative value turns it off # default: 0 (on)."]
+	
 	
 	l += ["  __Gene/Locus layer__:"]
 	l += ["\t-p  --profiles  path\t\tJSON file containing the (multiple) evolutionary profiles for simulated gene families, ", \
@@ -37,18 +40,18 @@ def usage():
 	l += ["\t-e  --sample.extant.species int\t\thow many genomes are sampled in the end? trees are pruned accordingly\t# all sampled by default."]
 	l += ["\t-l  --sample.larger.trees int\thow many single gene trees from a gene family population should be written out?", \
 	      crindent+"Can be handy to just diagnostic the simulated trees # all written by default."]
-	l += ["\t-c  --connect.all.trees float\tIn addition, return the multiple gene trees from a gene family population as one, connecting them at their root.", \
-	      crindent+"Length of branches of the star root is given by the argument, negative value turns it off # default: 0 (on)."]
+	#~ l += ["\t-c  --connect.all.trees float\tIn addition, return the multiple gene trees from a gene family population as one, connecting them at their root.", \
+	      #~ crindent+"Length of branches of the star root is given by the argument, negative value turns it off # default: 0 (on)."]
 	return '\n'.join(l)
 
 def main():
 	
 	# option parsing
 	try:
-		opts, args = getopt.getopt(sys.argv[1:], "o:n:r:f:e:l:c:p:vh", ["outputdir=", "ngenes=", "popsize=", "ngen=", \
+		opts, args = getopt.getopt(sys.argv[1:], "o:n:r:f:e:l:c:p:vh", ["outputdir=", "ngenes=", "popsize=", "ngen=", "connect.all.lineages=", \
 																	"dtlrates=", "rootfreq=", "profiles=", \
-																	"sample.larger.trees=", "connect.all.trees=", "sample.extant.species=", \
-																	"help", "verbose"])
+																	"sample.larger.trees=", "sample.extant.species=", \
+																	"help", "verbose"]) #, "connect.all.trees="
 	except getopt.GetoptError as err:
 		# print help information and exit:
 		print str(err)  # will print something like "option -a not recognized"
@@ -96,7 +99,7 @@ def main():
 		ngenes = int(dopt.get('-n', dopt.get('--ngenes', 10)))
 
 	nlargegenetrees = int(dopt.get('-l', dopt.get('--sample.larger.trees', -1)))
-	lentoroot = float(dopt.get('-c', dopt.get('--connect.all.trees', -1)))
+	lentoroot = float(dopt.get('-c', dopt.get('--connect.all.lineages', 0)))
 	samplextant = int(dopt.get('-e', dopt.get('--sample.extant.species', 0)))
 	assert samplextant <= popsize
 
@@ -143,6 +146,9 @@ def main():
 		bddtlsim = simulators.DTLtreeSimulator(model=bddtlmodel, refsimul=moransim, refnodeswithdescent=refnodeswithdescent, profile=dtlprof.sampleprofile(verbose=True), noTrigger=True)
 		bddtlsim.evolve(bddtlsim.ngen)
 
+		# connect all the gene trees in each gene population
+		congt = bddtlsim.finish(connecttrees=True)
+		
 		# save ref and gene tree simulation object together to save space as they share references to same objects
 		IOsimul.dumppickle({'refsim':moransim, 'genesim':bddtlsim}, "%s/pickles/simul.%d.pickle"%(outdir, k))
 
@@ -158,15 +164,12 @@ def main():
 			genetree.write_newick("%s/genetrees/simul.%d.all_gt.nwk"%(outdir, k), mode=('w' if l==0 else 'a'))
 			#~ genetree.ref.write_newick("%s/reftrees/simul.%d.rt.%d.nwk"%(outdir, k, l))
 		
-		if lentoroot>=0:
-			# connect all the gene trees in each gene population
-			congt = bddtlsim.connecttrees(lentoroot, returnCopy=True)
-			# write out connected trees
-			congt.write_newick("%s/genetrees/simul.%d.connected_gt_full.nwk"%(outdir, k))
-			# prune dead lineages and connect all roots of the species lineage trees
-			extconrt = bddtlsim.get_extanttree(compute=True, lentoroot=lentoroot)
-			print extconrt
-			extconrt.write_newick("%s/genetrees/simul.%d.connected_gt_extant.nwk"%(outdir, k))
+		# write out connected trees
+		congt.write_newick("%s/genetrees/simul.%d.connected_gt_full.nwk"%(outdir, k))
+		# prune dead lineages
+		extconrt = bddtlsim.get_extanttree(compute=True, lentoroot=lentoroot)
+		print extconrt
+		extconrt.write_newick("%s/genetrees/simul.%d.connected_gt_extant.nwk"%(outdir, k))
 				
 if __name__=='__main__':
 	main()

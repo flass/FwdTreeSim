@@ -74,11 +74,11 @@ class DTLSimulProfile(SimulProfile):
 	use shorthands such as 'core', 'accessory-slow', or 'orfan-fast' to access pre-defined profiles. Profiles can be created and stored in the class attribute
 	"""
 	dtypes = { \
-	           'core' : { 'rootfreq':1, 'rootlen':20, 'rateschedule': {0:{'rdup':.0001, 'rtrans':.0001, 'rloss':.0002}} }, \
-	           'accessory-slow' : { 'rootfreq':0.5, 'rootlen':20, 'rateschedule': {0:{'rdup':.0001, 'rtrans':.0001, 'rloss':.0002}} }, \
-	           'accessory-fast' : { 'rootfreq':0.5, 'rootlen':50, 'rateschedule': {0:{'rdup':.001, 'rtrans':.001, 'rloss':.002}} }, \
-	           'orfan-slow' : { 'rootfreq':0.01, 'rootlen':20, 'rateschedule': {0:{'rdup':.0001, 'rtrans':.0001, 'rloss':.0002}} }, \
-	           'orfan-fast' : { 'rootfreq':0.01, 'rootlen':50, 'rateschedule': {0:{'rdup':.001, 'rtrans':.001, 'rloss':.002}} } \
+	           'core' : { 'rootfreq':1, 'rootlen':1, 'rateschedule': {0:{'rdup':.0001, 'rtrans':.0001, 'rloss':.0002}} }, \
+	           'accessory-slow' : { 'rootfreq':0.5, 'rootlen':10, 'rateschedule': {0:{'rdup':.0001, 'rtrans':.0001, 'rloss':.0002}} }, \
+	           'accessory-fast' : { 'rootfreq':0.5, 'rootlen':30, 'rateschedule': {0:{'rdup':.001, 'rtrans':.001, 'rloss':.002}} }, \
+	           'orfan-slow' : { 'rootfreq':0.01, 'rootlen':10, 'rateschedule': {0:{'rdup':.0001, 'rtrans':.0001, 'rloss':.0002}} }, \
+	           'orfan-fast' : { 'rootfreq':0.01, 'rootlen':30, 'rateschedule': {0:{'rdup':.001, 'rtrans':.001, 'rloss':.002}} } \
 	          }
 	
 	def __init__(self, **kwargs):
@@ -90,6 +90,9 @@ class DTLSimulProfile(SimulProfile):
 		self.rootlen = kwargs.get('rootlen')
 		for attr in ['rateschedule', 'rootfreq', 'rootlen']:
 			if not getattr(self, attr): setattr(self, attr, DTLSimulProfile.dtypes[self.type][attr])
+		# particular metaparameter for tree length multiplier (emulates sequence diversity in gene family),
+		# which value can be set, but otherwise is not assumed to be related to the gene type
+		if not getattr(self, 'multreelen'): setattr(self, 'multreelen', ('gamma', 2, 0.5))
 
 	
 class MetaSimulProfile(object):
@@ -136,7 +139,12 @@ class MetaSimulProfile(object):
 		self.ngenes = max(int(self.ngenes), 1)
 			
 	def loadJSON(self, jsonfile):
-		"""reads profile from JSON file or string; see example for format"""
+		"""reads profile from JSON file or string; see example for format
+		
+		only the final tree length multiplier ('multreelen') is defined by default 
+		(will draw from a Gamma ditribution with parameters (k=2, thetha=0.5)) 
+		and can be omitted from the JSON file.
+		"""
 		with open(jsonfile, 'r') as fprofiles:
 			d = json.load(fprofiles, object_hook=_byteify)
 		clsname = d['simprofclass']
@@ -148,7 +156,7 @@ class MetaSimulProfile(object):
 		for profile in lprofiles:
 			ngenes = profile['ngenefams']
 			dprof = profile['profile']
-			prof = {'rootfreq':dprof['rootfreq'], 'rateschedule':{}}
+			prof = {'rootfreq':dprof['rootfreq'], 'rootlen':dprof['rootlen'], 'multreelen':dprof.get('multreelen', ('gamma', 2, 0.5)), 'rateschedule':{}}
 			assert len(dprof['times'])==len(dprof['rates'])
 			for i in range(len(dprof['times'])):
 				if dprof['times'][i] in prof['rateschedule']:
