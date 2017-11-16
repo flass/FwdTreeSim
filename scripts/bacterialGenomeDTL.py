@@ -17,9 +17,9 @@ def usage():
 	
 	l += ["  Simulation parameters:"]
 	l += ["  __Species/Genomes population layer__:"]
-	l += ["\t-s  --popsize   int\t\t\tnumber of species to simulate in the underlying Moran process\t# default: 100."]
-	l += ["\t-g  --ngen      int\t\t\tnumber of generation for which the evolution is simulated\t# default: 1000."]
-	l += ["\t-c  --connect.lineages float\t\tthe multiple species lineage trees from the Moran process' population will", \
+	l += ["\t-s  --popsize\t\tint\t\tnumber of species to simulate in the underlying Moran process\t# default: 100."]
+	l += ["\t-g  --ngen   \t\tint\t\tnumber of generations for which the evolution is simulated\t# default: 1000."]
+	l += ["\t-c  --connect.lineages\tfloat\t\tthe multiple species lineage trees from the Moran process' population will", \
 	      crindent+"all be connected at their root. The length of branches of the star-like", \
 	      crindent+"root is given by the argument, negative value turns it off.", \
 	      crindent+"# default: 0 (on)."]
@@ -39,10 +39,11 @@ def usage():
 	      crindent+"# default: 0.5 ; overriden by providing gene family profiles."]
 	
 	l += ["  Output options:"]
-	l += ["\t-e  --sample.extant.species int\t\thow many genomes are sampled in the end? trees are pruned accordingly", \
+	l += ["\t-e  --sample.extant.species\tint\thow many genomes are sampled in the end? trees are pruned accordingly", \
 	      crindent+"# default: all sampled."]
-	l += ["\t-l  --sample.larger.trees int\t\thow many single gene trees from a gene family population should be written out?", \
-	      crindent+"Can be handy to just diagnostic the simulated trees # all written by default."]
+	l += ["\t-l  --sample.larger.trees\tint\thow many lineage gene trees from a gene family population should be written out?", \
+	      crindent+"Can be handy to just carry a diagnostic the simulated trees.", \
+	      crindent+"# default: all lineage trees written as a single connected tree."]
 	return '\n'.join(l)
 
 def main():
