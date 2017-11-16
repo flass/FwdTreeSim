@@ -42,7 +42,7 @@ This library is implemented in pure Python (compatible with Python versions 2.7.
 Installation
 ------------
 
-First open a command-line terminal (hereusing a bash shell) and clone the git repository:
+First open a command-line terminal (here using a `bash` shell) and clone the git repository:
 ```bash
 # replace '/path/to/repo' by the path where you decide to clone the respective repositories
 cd /path/to/repo
@@ -121,4 +121,4 @@ For details of options, please type:
 ```sh
 python bacterialGenomeDTL.py --help
 ```
-
+\[snapshot of usage/help message [here](https://github.com/flass/FwdTreeSim/blob/master/scripts/bacterialGenomeDTL.py_help_message.txt)\]
