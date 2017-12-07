@@ -316,13 +316,15 @@ class SingleTreeSimulator(BaseTreeSimulator):
 		return e
 	
 class MultipleTreeSimulator(BaseTreeSimulator):
-	def __init__(self, model, **kwargs):
+	def __init__(self, model=None, **kwargs):
 		print 'invoke _MultipleTreeSimulator__init__'
 		print 'kwargs:', kwargs
 		super(MultipleTreeSimulator, self).__init__(model=model, **kwargs)
+		self.profile = kwargs.get('profile', IOsimul.SimulProfile())
+		if not self.model:
+			self.model = eval('models.'+self.profile.modeltype)(**kwargs)
 		self.popsize = self.model.popsize
 		self.trees = [self.nodeClass(l=float(0), lab="Root_%d"%i) for i in range(self.popsize)]
-		self.profile = kwargs.get('profile', IOsimul.SimulProfile())
 		
 		if not kwargs.get('noTrigger'):
 			self.checkdata()
@@ -472,7 +474,7 @@ class DTLtreeSimulator(MultipleTreeSimulator):
 	Profile of a gene family can be passed on with keywor argument 'profile', determining the root frequency of the gene in the population 
 	and the rates of evolution (edits the evolution model object), in a time-heterogeneous manner.
 	"""
-	def __init__(self, model, noTrigger=False, **kwargs):
+	def __init__(self, model=None, noTrigger=False, **kwargs):
 		print 'invoke _DTLtreeSimulator__init__'
 		print 'kwargs:', kwargs
 		super(DTLtreeSimulator, self).__init__(model=model, noTrigger=True, allow_multiple=kwargs.get('allow_multiple',False), **kwargs) ##W : dynamic allow_multiple rather than static False

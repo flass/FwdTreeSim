@@ -44,7 +44,7 @@ Installation
 
 First open a command-line terminal (here using a `bash` shell) and clone the git repository:
 ```bash
-# replace '/path/to/repo' by the path where you decide to clone the respective repositories
+# replace "/path/to/repo" by the path where you decide to clone the respective repositories
 cd /path/to/repo
 git clone https://github.com/flass/tree2
 git clone https://github.com/flass/FwdTreeSim
@@ -91,28 +91,37 @@ for k in range(ngenes):
 Profiles of gene evolution with rates and expected root frequency can be provided either as a dict object, or through a key name corresponding to a typical gene class, or through an input JSON file ([example](https://github.com/flass/FwdTreeSim/blob/master/examples/DTLprofiles.json)).
 Profiles also allow to set schedules of time heterogeneity in the process, e.g. with early family expansion by duplication, or later burst of transfers.
 ```python
+# set a single global set of DTL rate parameters to be applied from t=0 onwards:
+dprof =  { "rootfreq":0.5, "rateschedule": {0:{"rdup":0.0001, "rtrans":0.0001, "rloss":0.0002}} }
+# or set different DTL rate parameter sets across time:
+dprof = { "rootfreq":0.5, "rateschedule": {0:{"rdup":0.0005, "rtrans":0.0001, "rloss":0.0002}, 100:{"rdup":0.0001, "rtrans":0.0001, "rloss":0.0002}, 900:{"rdup":0.0001, "rtrans":0.001, "rloss":0.0002}} }
+# or equivalently:
+dprof = { "rootfreq":0.5, "times":[0, 100, 900], "rates": [{"rdup":0.0005, "rtrans":0.0001, "rloss":0.0002}, {"rdup":0.0001, "rtrans":0.0001, "rloss":0.0002}, {"rdup":0.0001, "rtrans":0.001, "rloss":0.0002}] }
+# one can also specify the model to be implemented
+dprof['modeltype'] = 'BirthDeathDTLModel'	# but no need as this is the default for the 'IOsimul.DTLSimulProfile' class
 
-rootfreq = 0.5
-# single global rate set to be applied from t=0 onwards
-dglobalprof =  { 'rootfreq':0.5, 'rateschedule': {0:{'rdup':0.0001, 'rtrans':0.0001, 'rloss':0.0002}} }
-globalprof = IOsimul.DTLSimulProfile(**dglobalprof)
-bddtlsim = simulators.DTLtreeSimulator(model=bddtlmodel, refsimul=moransim, profile=globalprof)
+# run the simulation
+prof = IOsimul.DTLSimulProfile(**prof)
+bddtlsim = simulators.DTLtreeSimulator(refsimul=moransim, profile=prof)	# note that we don't have to specify the model as it is encoded in the profile
 
-# different rate sets across time
-dtimeheteroprof = { 'rootfreq':0.5, 'rateschedule': {0:{'rdup':0.0005, 'rtrans':0.0001, 'rloss':0.0002}, 100:{'rdup':0.0001, 'rtrans':0.0001, 'rloss':0.0002}, 900:{'rdup':0.0001, 'rtrans':0.001, 'rloss':0.0002}} }
-timeheteroprof = IOsimul.DTLSimulProfile(**dtimeheteroprof)
-bddtlsim = simulators.DTLtreeSimulator(model=bddtlmodel, refsimul=moransim, profile=timeheteroprof)
-
-# a collection of different profiles can be provided so one is picked at random (with weights) prior to simulation
-lprof = [(100, { 'rootfreq':1, 'rateschedule': {0:{'rdup':.0001, 'rtrans':.0001, 'rloss':.0002}} }), (200, { 'rootfreq':0.5, 'rateschedule': {0:{'rdup':.0001, 'rtrans':.0001, 'rloss':.0002}} })]
+# a collection of different profiles can be specified so one is picked at random (with weights) prior to simulation of each gene family
+# provided as (freq, profile) tuples:
+lprof = [(100, { "rootfreq":1, "rateschedule": {0:{"rdup":.0001, "rtrans":.0001, "rloss":.0002}} }), (200, { "rootfreq":0.5, "rateschedule": {0:{"rdup":.0001, "rtrans":.0001, "rloss":.0002}} })]
 dtlprof = IOsimul.MetaSimulProfile(profiles=[(n, IOsimul.DTLSimulProfile(**dprof)) for n, dprof in lprof])
-
-# or more simply, using keyword handles
-geneclassprof = [(200, 'core'), (200, 'accessory-slow'), (600, 'orfan-fast')]
+# or using keyword handles:
+geneclassprof = [(200, "core"), (200, "accessory-slow"), (600, "orfan-fast")]
 dtlprof = IOsimul.MetaSimulProfile(profiles=[(n, IOsimul.DTLSimulProfile(type=t)) for n,t in geneclassprof])
+# or using an external file input (can be useful for batch applications) in JSON format:
+dtlprof = IOsimul.MetaSimulProfile(json='examples/DTLprofiles.json')
 
-# simulate with one of those profiles
-bddtlsim = simulators.DTLtreeSimulator(model=bddtlmodel, refsimul=moransim, profile=dtlprof.sampleprofile(verbose=True))
+# simulate with one of those profiles (here the expected frequencies are summed to specify the number of gene to simulate)
+bddtlsim = simulators.DTLtreeSimulator(refsimul=moransim, profile=dtlprof.sampleprofile(verbose=True))
+
+# (IN DEV) one can use similar profiles to generate a pangenome (collection of many gene families) in one go
+# (here the expected frequencies are summed to specify the number of gene to simulate)
+bddtlsim = multigene_simulators.DTLgenomeSimulator(refsimul=moransim, profile=dtlprof.sampleprofile(verbose=True))
+# altermnatively one can explicitely specify the number of gene to simulate
+bddtlsim = multigene_simulators.DTLgenomeSimulator(refsimul=moransim, profile=dtlprof.sampleprofile(verbose=True), ngenes=2000)
 
 ```
 

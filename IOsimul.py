@@ -55,23 +55,42 @@ def dumppickle(obj, fileorpath, autoclosefile=True, prompt=False, silent=True):
 	else:
 		print "could not save object %s due to failure to delete its attribute generator object(s)"%repr(obj)
 
-			
+def make_rateschedule(ltimes, lrates, drateschedule={}):
+	assert len(times)==len(lrates)
+	for t, i in enumerate(ltimes):
+		if t in drateschedule:
+			# verify that there is not redundant times listed for scheduled rate change
+			raise ValueError, "input profile include several instance of the same time slice (t=%d) marked for changing evolutionary rates, or is redundant with a previously specified one"%t
+		else:
+			drateschedule[t] = lrates[i]				
 
 class SimulProfile(object):
-	"""define generic class of profiles for simulator instances"""
+	"""define generic class of profiles for simulator instances
+	
+	by default the attached simulator model is 'MoranProcess'
+	"""
 	def __init__(self, **kwargs):
 		print 'invoke simulator.SimulProfile.__init__()'
+		self.modeltype = kwargs.get('modeltype', 'MoranProcess')
 		self.rateschedule = kwargs.get('rateschedule', {}) 	# expects a dictionary with:
 														#  keys = FIRST time slice of a range (the rates are checked for update at every time slice)
 														#  values = a dictionary with: keys = rate names as in target model; values = the rate value for the range.
 														# e.g. {0:{'rdup':.1, 'rtrans':.01, 'rloss':.02}, 100:{'rdup':.01, 'rtrans':.01, 'rloss':.02}}
 														# starts at t=0 with relatively high duplication rate, leading to family expansion,
 														# then from t=100 settles for evolution with an (expected) constant genome size
+		self.read_compound_rateschedule_fmt(kwargs)
+	
+	def read_compound_rateschedule_fmt(self, dprof):
+		ltimes = dprof.get('times', [])
+		lrates = dprof.get('rates', [])
+		make_rateschedule(ltimes, lrates, self.rateschedule)
 
 class DTLSimulProfile(SimulProfile):
 	"""define class of profiles for DTL simulator instances; specifically provides the expected root frequency of the gene/element
 	
-	use shorthands such as 'core', 'accessory-slow', or 'orfan-fast' to access pre-defined profiles. Profiles can be created and stored in the class attribute
+	by default the attached simulator model is 'BirthDeathDTLModel'
+	Use shorthands such as 'core', 'accessory-slow', or 'orfan-fast' to access pre-defined profiles. 
+	Profiles can be created and stored in the class attribute
 	"""
 	dtypes = { \
 	           'core' : { 'rootfreq':1, 'rootlen':1, 'rateschedule': {0:{'rdup':.0001, 'rtrans':.0001, 'rloss':.0002}} }, \
@@ -85,6 +104,7 @@ class DTLSimulProfile(SimulProfile):
 		print 'invoke simulator.DTLSimulProfile.__init__()'
 		print 'kwargs', kwargs
 		super(DTLSimulProfile, self).__init__(**kwargs) 
+		self.modeltype = kwargs.get('modeltype', 'BirthDeathDTLModel')
 		self.type = kwargs.get('type', 'core')
 		self.rootfreq = kwargs.get('rootfreq')
 		self.rootlen = kwargs.get('rootlen')
@@ -156,14 +176,9 @@ class MetaSimulProfile(object):
 		for profile in lprofiles:
 			ngenes = profile['ngenefams']
 			dprof = profile['profile']
-			prof = {'rootfreq':dprof['rootfreq'], 'rootlen':dprof['rootlen'], 'multreelen':dprof.get('multreelen', ('gamma', 2, 0.5)), 'rateschedule':{}}
-			assert len(dprof['times'])==len(dprof['rates'])
-			for i in range(len(dprof['times'])):
-				if dprof['times'][i] in prof['rateschedule']:
-					# verify that there is not redundant times listed for scheduled rate change
-					raise ValueError, "input profile include several instance of the same time slice (t=%d) marked for changing evolutionary rates"%dprof['times'][i]
-				else:
-					prof['rateschedule'][dprof['times'][i]] = dprof['rates'][i]	
+			prof = {'rootfreq':dprof['rootfreq'], 'rootlen':dprof['rootlen'], 'multreelen':dprof.get('multreelen', ('gamma', 2, 0.5)), 'rateschedule':dprof.get('rateschedule', {})}
+			if not prof['rateschedule']:
+				make_rateschedule(dprof.get('times', []), dprof.get('rates', []), prof['rateschedule'])
 			lngprof.append((float(ngenes), simprofcls(**prof)))
 		return lngprof
 			
