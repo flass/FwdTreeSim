@@ -96,16 +96,22 @@ Profiles also allow to set schedules of time heterogeneity in the process, e.g. 
 # set a single global set of DTL rate parameters to be applied from t=0 onwards:
 dprof =  { "rootfreq":0.5, "rateschedule": {0:{"rdup":0.0001, "rtrans":0.0001, "rloss":0.0002}} }
 # or set different DTL rate parameter sets across time:
-dprof = { "rootfreq":0.5, "rateschedule": {0:{"rdup":0.0005, "rtrans":0.0001, "rloss":0.0002}, 100:{"rdup":0.0001, "rtrans":0.0001, "rloss":0.0002}, 900:{"rdup":0.0001, "rtrans":0.001, "rloss":0.0002}} }
+dprof = { "rootfreq":0.5, \
+          "rateschedule": {0:{"rdup":0.0005, "rtrans":0.0001, "rloss":0.0002}, \
+                           100:{"rdup":0.0001, "rtrans":0.0001, "rloss":0.0002}, \
+                           900:{"rdup":0.0001, "rtrans":0.001, "rloss":0.0002}} }
 # or equivalently:
-dprof = { "rootfreq":0.5, "times":[0, 100, 900], "rates": [{"rdup":0.0005, "rtrans":0.0001, "rloss":0.0002}, {"rdup":0.0001, "rtrans":0.0001, "rloss":0.0002}, {"rdup":0.0001, "rtrans":0.001, "rloss":0.0002}] }
+dprof = { "rootfreq":0.5, \
+          "times":[0, 100, 900], \ 
+          "rates": [{"rdup":0.0005, "rtrans":0.0001, "rloss":0.0002}, {"rdup":0.0001, "rtrans":0.0001, "rloss":0.0002}, {"rdup":0.0001, "rtrans":0.001, "rloss":0.0002}] }
 # one can also specify the model to be implemented
 dprof['modeltype'] = 'BirthDeathDTLModel'
 # but no need as this is the default for the 'IOsimul.DTLSimulProfile' class
 
 # run the simulation
 prof = IOsimul.DTLSimulProfile(**prof)
-bddtlsim = simulators.DTLtreeSimulator(refsimul=moransim, profile=prof)	# note that we don't have to specify the model as it is encoded in the profile
+# note that we don't have to specify the model as it is encoded in the profile
+bddtlsim = simulators.DTLtreeSimulator(refsimul=moransim, profile=prof)
 
 # multiple profiles can be specified (with weights) so one is picked at random prior to simulation
 # provided as (freq, profile) tuples:
