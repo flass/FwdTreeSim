@@ -104,13 +104,13 @@ dprof = { "rootfreq":0.5, \
 dprof = { "rootfreq":0.5, \
           "times":[0, 100, 900], \ 
           "rates": [{"rdup":0.0005, "rtrans":0.0001, "rloss":0.0002}, {"rdup":0.0001, "rtrans":0.0001, "rloss":0.0002}, {"rdup":0.0001, "rtrans":0.001, "rloss":0.0002}] }
-# one can also specify the model to be implemented
+# one can also specify the class of model to be implemented
 dprof['modeltype'] = 'BirthDeathDTLModel'
 # but no need as this is the default for the 'IOsimul.DTLSimulProfile' class
 
 # run the simulation
 prof = IOsimul.DTLSimulProfile(**prof)
-# note that we don't have to specify the model as it is encoded in the profile
+# note that we don't have to provide a model instance as it is specified in the profile (a private model instance will be created)
 bddtlsim = simulators.DTLtreeSimulator(refsimul=moransim, profile=prof)
 
 # multiple profiles can be specified (with weights) so one is picked at random prior to simulation
