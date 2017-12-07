@@ -81,10 +81,12 @@ for k in range(ngenes):
 	## simulate one gene family tree
 	# set the model
 	bddtlmodel = models.BirthDeathDTLModel(rdup=rdup, rtrans=rtrans, rloss=rloss, rootfreq=rootfreq)
-	# set the simulator engine, notably by providing the reference species history from which many attributes are inherited
+	# set the simulator engine, providing the reference species history from which many attributes are inherited
 	bddtlsim = simulators.DTLtreeSimulator(model=bddtlmodel, refsimul=moransim, noTrigger=True)
-	# proceed with simulation, here for the same number of generations as the species tree, as inherited from the species simulation
-	bddtlsim.evolve(bddtlsim.ngen)
+	# proceed with simulation for 100 generations
+	bddtlsim.evolve(ngen=100)
+	# or by default with the number of generations inherited from the species simulation
+	bddtlsim.evolve()	# this call would be automatic if we'd not used the 'noTrigger=True' option above
 
 ```
 
@@ -98,30 +100,32 @@ dprof = { "rootfreq":0.5, "rateschedule": {0:{"rdup":0.0005, "rtrans":0.0001, "r
 # or equivalently:
 dprof = { "rootfreq":0.5, "times":[0, 100, 900], "rates": [{"rdup":0.0005, "rtrans":0.0001, "rloss":0.0002}, {"rdup":0.0001, "rtrans":0.0001, "rloss":0.0002}, {"rdup":0.0001, "rtrans":0.001, "rloss":0.0002}] }
 # one can also specify the model to be implemented
-dprof['modeltype'] = 'BirthDeathDTLModel'	# but no need as this is the default for the 'IOsimul.DTLSimulProfile' class
+dprof['modeltype'] = 'BirthDeathDTLModel'
+# but no need as this is the default for the 'IOsimul.DTLSimulProfile' class
 
 # run the simulation
 prof = IOsimul.DTLSimulProfile(**prof)
 bddtlsim = simulators.DTLtreeSimulator(refsimul=moransim, profile=prof)	# note that we don't have to specify the model as it is encoded in the profile
 
-# a collection of different profiles can be specified so one is picked at random (with weights) prior to simulation of each gene family
+# multiple profiles can be specified (with weights) so one is picked at random prior to simulation
 # provided as (freq, profile) tuples:
-lprof = [(100, { "rootfreq":1, "rateschedule": {0:{"rdup":.0001, "rtrans":.0001, "rloss":.0002}} }), (200, { "rootfreq":0.5, "rateschedule": {0:{"rdup":.0001, "rtrans":.0001, "rloss":.0002}} })]
+lprof = [(100, { "rootfreq":1.0, "rateschedule": {0:{"rdup":.0001, "rtrans":.0001, "rloss":.0002}} }), \
+         (200, { "rootfreq":0.5, "rateschedule": {0:{"rdup":.0001, "rtrans":.0001, "rloss":.0002}} })]
 dtlprof = IOsimul.MetaSimulProfile(profiles=[(n, IOsimul.DTLSimulProfile(**dprof)) for n, dprof in lprof])
 # or using keyword handles:
-geneclassprof = [(200, "core"), (200, "accessory-slow"), (600, "orfan-fast")]
-dtlprof = IOsimul.MetaSimulProfile(profiles=[(n, IOsimul.DTLSimulProfile(type=t)) for n,t in geneclassprof])
+pangeneprof = [(200, "core"), (200, "accessory-slow"), (600, "orfan-fast")]
+dtlprof = IOsimul.MetaSimulProfile(profiles=[(n, IOsimul.DTLSimulProfile(type=t)) for n,t in pangeneprof])
 # or using an external file input (can be useful for batch applications) in JSON format:
 dtlprof = IOsimul.MetaSimulProfile(json='examples/DTLprofiles.json')
 
-# simulate with one of those profiles (here the expected frequencies are summed to specify the number of gene to simulate)
+# simulate with one of those profiles (here the expected frequencies are normalized to get probabilities)
 bddtlsim = simulators.DTLtreeSimulator(refsimul=moransim, profile=dtlprof.sampleprofile(verbose=True))
 
 # (IN DEV) one can use similar profiles to generate a pangenome (collection of many gene families) in one go
 # (here the expected frequencies are summed to specify the number of gene to simulate)
 bddtlsim = multigene_simulators.DTLgenomeSimulator(refsimul=moransim, profile=dtlprof.sampleprofile(verbose=True))
 # altermnatively one can explicitely specify the number of gene to simulate
-bddtlsim = multigene_simulators.DTLgenomeSimulator(refsimul=moransim, profile=dtlprof.sampleprofile(verbose=True), ngenes=2000)
+bddtlsim = multigene_simulators.DTLgenomeSimulator(refsimul=moransim, ngenes=2000, profile=dtlprof.sampleprofile(verbose=True))
 
 ```
 
