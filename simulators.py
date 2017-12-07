@@ -209,7 +209,7 @@ class SingleTreeSimulator(BaseTreeSimulator):
 		if not kwargs.get('noTrigger'):
 			self.checkdata()
 			# if ngen specified, launch simulation for ngen iterations
-			if self.ngen: self.evolve(self.ngen)
+			if self.ngen: self.evolve(ngen=self.ngen)
 		
 	def checkdata(self):
 		"""assert (self-)consistency of data, i.e. support of tree object class and that nodes in eventsrecord are included in the tree"""
@@ -231,10 +231,15 @@ class SingleTreeSimulator(BaseTreeSimulator):
 		if lerrnodes: raise tree2.AggregateTreeReferenceError(lerrnodes, self.tree)
 		return 0
 
-	def evolve(self, ngen, verbose=False, nodeathspan=[], stopcondition=(lambda x: (None, None)), **kwargs):
+	def evolve(self, ngen=None, verbose=False, nodeathspan=[], stopcondition=(lambda x: (None, None)), **kwargs):
 		"""simulation engine, iterates step of the simulation model"""
 		evtidgen = kwargs.get('evtidgen', self.eventidgen)
-		while self.t < ngen:
+		if ngen is None:
+			if self.ngen >= 0: ngener = self.ngen
+			else: raise ValueError: "must provide an integer non-negative value for 'self.ngen' attribute (got %s)"%repr(self.ngen)
+		else:
+			ngener = ngen
+		while self.t < ngener:
 			self.t += 1
 			levents, dnode2eventids, contempbranches, brlen = self.model.stepforward(self, allowdeath=(self.t not in nodeathspan), evtidgen=evtidgen)
 			# record what happened
@@ -322,6 +327,8 @@ class MultipleTreeSimulator(BaseTreeSimulator):
 		super(MultipleTreeSimulator, self).__init__(model=model, **kwargs)
 		self.profile = kwargs.get('profile', IOsimul.SimulProfile())
 		if not self.model:
+			# by default create a private model instance; these are better not shared between gene families 
+			# as their rates might have to be updated at different time points
 			self.model = eval('models.'+self.profile.modeltype)(**kwargs)
 		self.popsize = self.model.popsize
 		self.trees = [self.nodeClass(l=float(0), lab="Root_%d"%i) for i in range(self.popsize)]
@@ -329,7 +336,7 @@ class MultipleTreeSimulator(BaseTreeSimulator):
 		if not kwargs.get('noTrigger'):
 			self.checkdata()
 			# if ngen specified, launch simulation for ngen iterations
-			if self.ngen: self.evolve(self.ngen)
+			if self.ngen: self.evolve(ngen=self.ngen)
 		
 	def checkdata(self):
 		"""assert (self-)consistency of data, i.e. support of tree object class and that nodes in eventsrecord are included in the trees"""
@@ -366,10 +373,15 @@ class MultipleTreeSimulator(BaseTreeSimulator):
 			# updates the rate attributes, e.g. 'rdup', 'rtrans', 'rloss'
 			self.model.__dict__.update(self.profile.rateschedule[self.t])
 		
-	def evolve(self, ngen, verbose=False, nodeathspan=[], stopcondition=(lambda x: (None, None)), **kwargs):
+	def evolve(self, ngen=None, verbose=False, nodeathspan=[], stopcondition=(lambda x: (None, None)), **kwargs):
 		"""simulation engine, iterates step of the simulation model"""
 		evtidgen = kwargs.get('evtidgen', self.eventidgen)
-		while self.t < ngen: 
+		if ngen is None:
+			if self.ngen >= 0: ngener = self.ngen
+			else: raise ValueError: "must provide an integer non-negative value for 'self.ngen' attribute (got %s)"%repr(self.ngen)
+		else:
+			ngener = ngen
+		while self.t < ngener:
 			self.t += 1
 			# check if need to update model at this time step
 			self.update_rates()
@@ -555,10 +567,15 @@ class DTLtreeSimulator(MultipleTreeSimulator):
 			currbranches += tree.go_root().get_comtemporary_branches(l)
 		return currbranches
 		
-	def evolve(self, ngen, verbose=False, stopcondition=(lambda x: (None, None)), **kwargs):
+	def evolve(self, ngen=None, verbose=False, stopcondition=(lambda x: (None, None)), **kwargs):
 		"""simulation engine, iterates step of the simulation model"""
 		evtidgen = kwargs.get('evtidgen', self.eventidgen)
-		while self.t < ngen:
+		if ngen is None:
+			if self.ngen >= 0: ngener = self.ngen
+			else: raise ValueError: "must provide an integer non-negative value for 'self.ngen' attribute (got %s)"%repr(self.ngen)
+		else:
+			ngener = ngen
+		while self.t < ngener:
 			# record time step advance
 			self.t += 1
 			# check if need to update model at this time step
