@@ -52,6 +52,7 @@ class BaseTreeSimulator(object):
 	Base wrapper class for forward tree simulations.
 	
 	Main attributes:
+	- self.profile         : a dict specifying the model parameters and potential timing of their change of value
 	- self.model           : a model instance from *Model classes from 'models' module.
 	- self.tree            : a (list of) tree2.Node (or derived class) phylogenetic tree object; 
 	or self.trees             uses the tree provided through 'starttree' argument or (default) a single-node tree (set) as a seed for the simulation.
@@ -79,6 +80,14 @@ class BaseTreeSimulator(object):
 		print 'invoke _BaseTreeSimulator__init__'
 		#~ print 'kwargs:', kwargs
 		self.model = kwargs.get('model')
+		self.profile = kwargs.get('profile', IOsimul.SimulProfile(**kwargs))
+		if not self.model:
+			if getattr(self.profile, 'modeltype', False):
+				# by default create a private model instance; these are better not shared between gene families 
+				# as their rates might have to be updated at different time points
+				self.model = eval('models.'+self.profile.modeltype)(**kwargs)
+			else:
+				raise ValueError, "must specify the model to simulate either through the 'profile' of the 'model' arguments"
 		self.t = 0
 		self.times = kwargs.get('times', [])
 		self.events = kwargs.get('events', {})
@@ -204,15 +213,8 @@ class BaseTreeSimulator(object):
 ################################################
 		
 class SingleTreeSimulator(BaseTreeSimulator):
-	def __init__(self, starttree=None, **kwargs):
-		self.profile = kwargs.get('profile', IOsimul.SimulProfile(modeltype='PartialMoranProcess'))
-		super(SingleTreeSimulator, self).__init__(**kwargs)
-		if not self.model:
-			# by default create a private model instance; these are better not shared between gene families 
-			# as their rates might have to be updated at different time points
-			self.model = eval('models.'+self.profile.modeltype)(**kwargs)
-		else:
-			raise ValueError, "must specify the model to simulate either through the 'profile' of the 'model' arguments"
+	def __init__(self, starttree=None, modeltype='PartialMoranProcess', **kwargs):
+		super(SingleTreeSimulator, self).__init__(modeltype=modeltype, **kwargs)
 		self.tree = starttree or self.nodeClass(l=float(0), lab="Root", addAttr=self.nodeAttr)
 		
 		if not kwargs.get('noTrigger'):
@@ -331,18 +333,10 @@ class SingleTreeSimulator(BaseTreeSimulator):
 		return e
 	
 class MultipleTreeSimulator(BaseTreeSimulator):
-	def __init__(self, **kwargs):
+	def __init__(self, modeltype='MoranProcess', **kwargs):
 		print 'invoke _MultipleTreeSimulator__init__'
 		#~ print 'kwargs:', kwargs
-		self.profile = kwargs.get('profile', IOsimul.SimulProfile(modeltype='MoranProcess'))
-		super(MultipleTreeSimulator, self).__init__(**kwargs)
-		if self.model is None:
-			if getattr(self.profile, 'modeltype', False):
-				# by default create a private model instance; these are better not shared between gene families 
-				# as their rates might have to be updated at different time points
-				self.model = eval('models.'+self.profile.modeltype)(**kwargs)
-			else:
-				raise ValueError, "must specify a valid model type to simulate in the provided profile"
+		super(MultipleTreeSimulator, self).__init__(modeltype=modeltype, **kwargs)
 		self.popsize = self.model.popsize
 		self.trees = [self.nodeClass(l=float(0), lab="Root_%d"%i, addAttr=self.nodeAttr) for i in range(self.popsize)]
 		
@@ -530,10 +524,10 @@ class DTLtreeSimulator(MultipleTreeSimulator):
 	Profile of a gene family can be passed on with keywor argument 'profile', determining the root frequency of the gene in the population 
 	and the rates of evolution (edits the evolution model object), in a time-heterogeneous manner.
 	"""
-	def __init__(self, model=None, noTrigger=False, **kwargs):
+	def __init__(self, noTrigger=False, modeltype='BirthDeathDTLModel', **kwargs):
 		print 'invoke _DTLtreeSimulator__init__'
 		#~ print 'kwargs:', kwargs
-		super(DTLtreeSimulator, self).__init__(model=model, noTrigger=True, allow_multiple=kwargs.get('allow_multiple',False), **kwargs) ##W : dynamic allow_multiple rather than static False
+		super(DTLtreeSimulator, self).__init__(modeltype=modeltype, noTrigger=True, allow_multiple=kwargs.get('allow_multiple',False), **kwargs) ##W : dynamic allow_multiple rather than static False
 		# automatic checkdata() and evolve(ngen) triggers from parent classses are deactivated by noTrigger=True
 		#~ self.rootfreq = kwargs['rootfreq'] # frequency a which the gene family is found at the root of each tree in the multiple reference tree set (species lineages from a Moran process)
 		refsimul = kwargs.get('refsimul')

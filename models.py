@@ -356,7 +356,6 @@ class BirthDeathDTLModel(MultipleTreeModel):
 		self.cumploss = rloss
 		self.cumpdupl = self.cumploss + rdup
 		self.cumptrans = self.cumpdupl + rtrans
-		print self.cumploss,  self.cumpdupl, self.cumptrans
 		
 	@staticmethod
 	def midTimesliceOnBranch(node, timeslice):
