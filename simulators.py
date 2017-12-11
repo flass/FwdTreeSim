@@ -10,7 +10,8 @@ __credits__ = """Leonor Palmeira and Laurent Guéguen for initiating the tree2.N
 import os
 import copy
 import random
-from FwdTreeSim import models, nodelabelprefix, IOsimul
+from FwdTreeSim import models, IOsimul
+from FwdTreeSim import nodelabelprefix
 import tree2
 from numpy.random import gamma
 
@@ -76,7 +77,7 @@ class BaseTreeSimulator(object):
 	
 	def __init__(self, model, **kwargs):
 		print 'invoke _BaseTreeSimulator__init__'
-		print 'kwargs:', kwargs
+		#~ print 'kwargs:', kwargs
 		self.model = model
 		self.t = 0
 		self.times = kwargs.get('times', [])
@@ -86,6 +87,7 @@ class BaseTreeSimulator(object):
 		self.extincts = kwargs.get('extincts', [])
 		self.contempbranches =  kwargs.get('contempbranches', [])
 		self.nodeClass = kwargs.get('nodeClass', tree2.AnnotatedNode)
+		self.nodeAttr = kwargs.get('nodeAttr', [])+['extinct']
 		self.ngen = kwargs.get('ngen')
 		self.eventidgen = models.eventIdGen()	# generator object providing serial unique identifiers for event objects
 		self.dumppickle_warning = '\n'.join(["Cannot pickle generator objects; to pickle simulator object instance %s,"%repr(self), \
@@ -236,7 +238,7 @@ class SingleTreeSimulator(BaseTreeSimulator):
 		evtidgen = kwargs.get('evtidgen', self.eventidgen)
 		if ngen is None:
 			if self.ngen >= 0: ngener = self.ngen
-			else: raise ValueError: "must provide an integer non-negative value for 'self.ngen' attribute (got %s)"%repr(self.ngen)
+			else: raise ValueError, "must provide an integer non-negative value for 'self.ngen' attribute (got %s)"%repr(self.ngen)
 		else:
 			ngener = ngen
 		while self.t < ngener:
@@ -316,14 +318,15 @@ class SingleTreeSimulator(BaseTreeSimulator):
 		return self.tree.nb_leaves() - len(self.extincts)
 		
 	def get_extants(self, depthsorted=False):
-		e = list(set(self.tree.get_leaves()) - set(self.extincts))
+		#~ e = list(set(self.tree.get_leaves()) - set(self.extincts))
+		e = [leaf for leaf in self.tree.get_leaves() if not (leaf.extinct is True)]
 		if depthsorted: e.sort(key=lambda x: x.depth())
 		return e
 	
 class MultipleTreeSimulator(BaseTreeSimulator):
 	def __init__(self, model=None, **kwargs):
 		print 'invoke _MultipleTreeSimulator__init__'
-		print 'kwargs:', kwargs
+		#~ print 'kwargs:', kwargs
 		super(MultipleTreeSimulator, self).__init__(model=model, **kwargs)
 		self.profile = kwargs.get('profile', IOsimul.SimulProfile())
 		if not self.model:
@@ -331,7 +334,7 @@ class MultipleTreeSimulator(BaseTreeSimulator):
 			# as their rates might have to be updated at different time points
 			self.model = eval('models.'+self.profile.modeltype)(**kwargs)
 		self.popsize = self.model.popsize
-		self.trees = [self.nodeClass(l=float(0), lab="Root_%d"%i) for i in range(self.popsize)]
+		self.trees = [self.nodeClass(l=float(0), lab="Root_%d"%i, addAttr=self.nodeAttr) for i in range(self.popsize)]
 		
 		if not kwargs.get('noTrigger'):
 			self.checkdata()
@@ -361,8 +364,9 @@ class MultipleTreeSimulator(BaseTreeSimulator):
 		
 	def get_extants(self, depthsorted=False):
 		"""generate a single list of all extant leaves across all trees in  the self.trees set"""
-		sleave = set(sum((tree.get_leaves() for tree in self.trees), []))
-		extants = list(sleave - set(self.extincts))
+		#~ sleave = set(sum((tree.get_leaves() for tree in self.trees), []))
+		#~ extants = list(sleave - set(self.extincts))
+		extants = sum(([leaf for leaf in self.tree.get_leaves() if not (leaf.extinct is True)] for tree in self.trees), [])
 		if depthsorted: extants.sort(key=lambda x: x.depth())
 		if isinstance(self.model, models.MoranProcess): assert len(extants) == self.popsize
 		return extants
@@ -378,7 +382,7 @@ class MultipleTreeSimulator(BaseTreeSimulator):
 		evtidgen = kwargs.get('evtidgen', self.eventidgen)
 		if ngen is None:
 			if self.ngen >= 0: ngener = self.ngen
-			else: raise ValueError: "must provide an integer non-negative value for 'self.ngen' attribute (got %s)"%repr(self.ngen)
+			else: raise ValueError, "must provide an integer non-negative value for 'self.ngen' attribute (got %s)"%repr(self.ngen)
 		else:
 			ngener = ngen
 		while self.t < ngener:
@@ -439,19 +443,45 @@ class MultipleTreeSimulator(BaseTreeSimulator):
 	## post-simulation tree grooming
 	
 	def labeltreenodes(self, dictprefix=nodelabelprefix, treesattrname='trees', onlyExtants=True, silent=True):
-		"""puts distinctive labes at internal nodes and extinct and extant leaves (default prefixes are N, E, S,respectively). Labelling follows increasing order from root"""
+		"""puts distinctive labels at internal nodes and extinct and extant leaves (default prefixes are N, E, S,respectively). Labelling follows increasing order from root"""
 		for t in getattr(self, treesattrname):
 			t.complete_internal_labels(prefix=dictprefix['livetip'], onlyLeaves=True, exclude=self.extincts, silent=silent)
 			if not onlyExtants:
 				t.complete_internal_labels(prefix=dictprefix['deadtip'], onlyLeaves=True, silent=silent)
 				t.complete_internal_labels(prefix=dictprefix['node'], excludeLeaves=True, silent=silent)
+				
+	def shadetreenodes(self, shadeeventstoextincts=True, silent=True, dimfactor=0.66):
+		"""puts distinctive colors saturation on branches leading to extinct and extant leaves have different saturation"""
+		def dimcolor(node):
+			if hasattr(node, 'color'):
+				if node.color():
+					# color already set by an event
+					if shadeeventstoextincts:
+						node.edit_color([c*dimfactor for c in node.color()])
+				else:
+					 node.edit_color([255*dimfactor, 255*dimfactor, 255*dimfactor])
+		
+		#~ sextincts = set(self.extincts)
+		for node in self.extincts:
+			dimcolor(node)
+			# below unecessary unless single-child nodes (rosary-like branches) are present
+			#~ fat = node.go_father()
+			#~ while fat:
+				#~ ch = fat.get_leaves()
+				#~ if (set(ch) - sextincts):
+					#~ # father has non-extinct children
+					#~ break
+				#~ dimcolor(fat)
+				#~ node = fat
+				#~ fat = node.go_father()
 			
 	def get_extanttrees(self, compute=True, addextincts=[], collapsenodes=False, cache=True):
 		"""returns a COPY of the list of all trees 'cleaned' of their dead branches ; NB: original tree will have all its nodes labelled afterward"""
 		if not compute: return self._extanttrees
 		# only works with all nodes being labelled, to use labels as references rather than the node objects (which refer to the original tree) in Node.pop() 
 		self.labeltreenodes(silent=False) # should not be necessary though
-		extanttrees = [self.copy_prune_dead_lineages(t, self.extincts+addextincts, trimroot=False, collapsenodes=collapsenodes) for t in self.trees]
+		# exclude null trees (None objects) from the returned list
+		extanttrees = [self.copy_prune_dead_lineages(t, self.extincts+addextincts, trimroot=False, collapsenodes=collapsenodes) for t in self.trees if t]
 		if cache: self._extanttrees = extanttrees
 		return extanttrees
 
@@ -459,10 +489,11 @@ class MultipleTreeSimulator(BaseTreeSimulator):
 		"""wrapper for get_extanttrees() methods; returns a COPY of the single root connecting all trees 'cleaned' of their dead branches ; NB: original tree will have all its nodes labelled afterward"""
 		if not compute: return self._extanttree
 		else:
-			extanttrees = self.get_extanttrees(compute=True, addextincts=addextincts, collapsenodes=collapsenodes, **kw) # possibly use a child class' method
-			# exclude null trees (None objects) before connecting them
-			extanttree = self.connecttrees([t for t in extanttrees if t], l=lentoroot, returnCopy=False)
-			if cache: self._extanttrees = extanttrees
+			extanttrees = [t for t in self.get_extanttrees(compute=True, addextincts=addextincts, collapsenodes=collapsenodes, **kw) if t] # possibly use a child class' method
+			if extanttrees: # not an empty list
+				extanttree = _connecttrees(extanttrees, l=lentoroot, returnCopy=False)
+				if cache: self._extanttrees = extanttrees
+			else: extanttree = None
 			return extanttree
 		
 	
@@ -488,7 +519,7 @@ class DTLtreeSimulator(MultipleTreeSimulator):
 	"""
 	def __init__(self, model=None, noTrigger=False, **kwargs):
 		print 'invoke _DTLtreeSimulator__init__'
-		print 'kwargs:', kwargs
+		#~ print 'kwargs:', kwargs
 		super(DTLtreeSimulator, self).__init__(model=model, noTrigger=True, allow_multiple=kwargs.get('allow_multiple',False), **kwargs) ##W : dynamic allow_multiple rather than static False
 		# automatic checkdata() and evolve(ngen) triggers from parent classses are deactivated by noTrigger=True
 		#~ self.rootfreq = kwargs['rootfreq'] # frequency a which the gene family is found at the root of each tree in the multiple reference tree set (species lineages from a Moran process)
@@ -553,7 +584,9 @@ class DTLtreeSimulator(MultipleTreeSimulator):
 							genetrees.append(self.reftrees[n].deepcopybelow(keep_lg=True, add_ref_attr=True))
 					else:
 						genetrees += [rt.deepcopybelow(keep_lg=True, add_ref_attr=True) for rt in self.reftrees if random.random() < p]
-				p -= 1.0
+				if genetrees:
+					# if not tree was sampled, redo a sampling round: there is no point simulating an entirely absent gene family
+					p -= 1.0
 				# not ideal as that does not introduce much variance in copy number, as only the nth copy is not certain to be sampled.
 				# Ideal for modelling genes with proba 1.x, i.e. core genes with possibility of transient duplicates arising
 			if return_index: return genetrees
@@ -572,7 +605,7 @@ class DTLtreeSimulator(MultipleTreeSimulator):
 		evtidgen = kwargs.get('evtidgen', self.eventidgen)
 		if ngen is None:
 			if self.ngen >= 0: ngener = self.ngen
-			else: raise ValueError: "must provide an integer non-negative value for 'self.ngen' attribute (got %s)"%repr(self.ngen)
+			else: raise ValueError, "must provide an integer non-negative value for 'self.ngen' attribute (got %s)"%repr(self.ngen)
 		else:
 			ngener = ngen
 		while self.t < ngener:
@@ -667,15 +700,16 @@ class DTLtreeSimulator(MultipleTreeSimulator):
 		if not compute: return self._extanttrees
 		# only works with all nodes being labelled, to use labels as references rather than the node objects (which refer to the original tree) in Node.pop() 
 		self.labeltreenodes(silent=False) # should not be necessary though
+		# NB: will exclude null trees (None objects) from the returned list
 		# first remove lineages associated to extinct species
-		lineages = [self.copy_prune_dead_lineages(t, trimroot=False, collapsenodes=collapsenodes) for t in self.genetrees]
+		lineages = [self.copy_prune_dead_lineages(t, trimroot=False, collapsenodes=collapsenodes) for t in self.genetrees if t]
 		# and second remove lineages associated to gene loss
 		if removelosses:
 			if collapsenodes:
-				extanttrees = [BaseTreeSimulator.copy_prune_dead_lineages(t, self.extincts, trimroot=False, collapsenodes=collapsenodes) for t in lineages]
+				extanttrees = [BaseTreeSimulator.copy_prune_dead_lineages(t, self.extincts, trimroot=False, collapsenodes=collapsenodes) for t in lineages if t]
 			else:
 				# keep a "rosary" structure of branches where single-child nodes are annotated as speciation-loss events
-				extanttrees = [IOsimul.annotateSpeciationLossEvents(extanttree=t, trimLosses=True, lossnodes=self.extincts) for t in lineages]
+				extanttrees = [IOsimul.annotateSpeciationLossEvents(extanttree=t, lossnodes=self.extincts, trimLosses=True) for t in lineages if t]
 		else:
 			extanttrees = lineages
 		return extanttrees

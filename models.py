@@ -23,8 +23,8 @@ def normalp1(scale, size=None):
 	return normal(loc=1, scale=scale, size=size)
 
 # RGB components of colours
-eventcolcode = {'birth':[0,255,0], 'death':[0,0,255], 'loss':[127,127,127], 'transfer':[200,200,0], 'duplication':[255,0,0]}
-# eventcolcode = {'birth':'green', 'death':'blue', 'loss':'grey', 'transfer':'gold', 'duplication':'red'}
+eventcolcode = {'birth':[30,255,0], 'death':[0,0,255], 'speciation':[200,200,0], 'transfer':[127,0,255], 'duplication':[255,0,0], 'loss':[170,170,170]}
+# eventcolcode = {'birth':'green', 'death':'blue', 'speciation':'gold', 'transfer':'mauve', 'duplication':'red', 'loss':'grey'}
 
 ######################################
 # Birth-Death generative models
@@ -103,6 +103,7 @@ class UniformDiscreetBirthDeathModel(SingleTreeModel):
 			for leaf in newextants:
 				if random.random() <= self.dprob:
 					simul.extincts.append(leaf)
+					leaf.extinct = True
 					BDevent('death', leaf, t, evtidgen, levents, devents)
 					self.annotateNode(leaf, 'death')
 		return (levents, devents, extants, self.tunit)
@@ -136,6 +137,7 @@ class GenericDiscreetBirthDeathModel(SingleTreeModel):
 				if allowdeath:
 					# lineage goes extinct
 					simul.extincts.append(leaf)
+					leaf.extinct = True
 					BDevent('death', leaf, t, evtidgen, levents, devents)
 					leaf.edit_label("%s%d.%d"%(nodelabelprefix['deadtip'], t, nd))
 					self.annotateNode(leaf, 'death')
@@ -254,6 +256,7 @@ class BaseMoranProcess(BaseModel):
 				dleaf.edit_label("%s%d"%(nodelabelprefix['deadtip'], t))
 				# lineage goes extinct
 				simul.extincts.append(dleaf)
+				dleaf.extinct = True
 				BDevent('death', dleaf, t, evtidgen, levents, devents)
 				self.annotateNode(dleaf, 'death')
 			else:
@@ -492,8 +495,9 @@ class BirthDeathDTLModel(MultipleTreeModel):
 				rec = random.choice(currrefbranches)
 				self.transferEvent(cb, rec, timeslice)
 			else:
-				evtype = None
-			if evtype: 
+				evtype = 'spec'
+				self.annotateNode(cb, 'speciation')
+			if evtype!='spec': 
 				e = DTLevent(evtype, cb, t, evtidgen, levents, devents, trec)
 				# annoates the node's subtree labels by appending a string that signifies the event
 				if evtype in ['trans', 'dupl']:
@@ -507,10 +511,11 @@ class BirthDeathDTLModel(MultipleTreeModel):
 					cb.go_father().edit_label("%s%s%d"%(prelab, DTLevent.etshorts[evtype], e.evtid()), mode='a', sep="-")
 					# and the recipient with all its descendants
 					e.recgenenode.edit_all_labels("%s%s%d"%(prelab, DTLevent.etshorts[evtype], e.evtid()), mode='a', sep="-")
-				else:
-					# (loss event) annotate the node label with the event tag with the event tag
+				elif evtype=='loss':
+					# annotate the node label with the loss event tag
 					cb.edit_label("%s%d"%(DTLevent.etshorts[evtype], e.evtid()), mode='a', sep="-")
 					simul.extincts.append(cb)
+					cb.extinct = True
 		return (levents, devents, trec)
 
 

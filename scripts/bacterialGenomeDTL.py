@@ -93,7 +93,7 @@ def main():
 		dglobalprof = {0:{'rdup':dtlrates[0], 'rtrans':dtlrates[1], 'rloss':dtlrates[2]}}
 		globalprof = IOsimul.DTLSimulProfile(rateschedule=dglobalprof, rootfreq=rootfreq)
 		dtlprof = IOsimul.MetaSimulProfile(profiles=[(1, globalprof)])
-
+	
 	# derive number of gene families to simulate from profile weights, or from dedicated option -n (overrides profiles), or take default value of 10
 	if dtlprof.ngenes>1:
 		ngenes = dtlprof.ngenes
@@ -153,6 +153,7 @@ def main():
 		
 		# save ref and gene tree simulation object together to save space as they share references to same objects
 		IOsimul.dumppickle({'refsim':moransim, 'genesim':bddtlsim}, "%s/pickles/simul.%d.pickle"%(outdir, k))
+		bddtlsim.shadetreenodes()
 
 		# write out the largest n gene trees and corresponding species trees
 		if nlargegenetrees>=0:
@@ -163,15 +164,24 @@ def main():
 			isavetrees = xrange(len(bddtlsim.genetrees))
 		for l in isavetrees:
 			genetree = bddtlsim.genetrees[l]
-			genetree.write_newick("%s/genetrees/simul.%d.all_gt.nwk"%(outdir, k), mode=('w' if l==0 else 'a'))
+			gtoutrad = "%s/genetrees/simul.%d.all_gt"%(outdir, k)
+			genetree.write_newick(gtoutrad+".nwk", mode=('w' if l==0 else 'a'))
+			genetree.write_nexus(gtoutrad+".nex", mode=('w' if l==0 else 'a'))
 			#~ genetree.ref.write_newick("%s/reftrees/simul.%d.rt.%d.nwk"%(outdir, k, l))
 		
 		# write out connected trees
-		congt.write_newick("%s/genetrees/simul.%d.connected_gt_full.nwk"%(outdir, k))
+		congtoutrad = "%s/genetrees/simul.%d.connected_gt_full"%(outdir, k)
+		congt.write_newick(congtoutrad+".nwk")
+		congt.write_nexus(congtoutrad+".nex")
 		# prune dead lineages
+		extcongtoutrad = "%s/genetrees/simul.%d.connected_gt_extant"%(outdir, k)
 		extconrt = bddtlsim.get_extanttree(compute=True, lentoroot=lentoroot)
-		print extconrt
-		extconrt.write_newick("%s/genetrees/simul.%d.connected_gt_extant.nwk"%(outdir, k))
+		if extconrt:
+			extconrt.write_newick(extcongtoutrad+".nwk")
+			extconrt.write_nexus(extcongtoutrad+".nex")
+		else:
+			with open(extcongtoutrad, "w") as fextcongtout:
+				fextcongtout.write("no extant gene tree lineages.\n")
 				
 if __name__=='__main__':
 	main()

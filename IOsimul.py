@@ -56,7 +56,7 @@ def dumppickle(obj, fileorpath, autoclosefile=True, prompt=False, silent=True):
 		print "could not save object %s due to failure to delete its attribute generator object(s)"%repr(obj)
 
 def make_rateschedule(ltimes, lrates, drateschedule={}):
-	assert len(times)==len(lrates)
+	assert len(ltimes)==len(lrates)
 	for t, i in enumerate(ltimes):
 		if t in drateschedule:
 			# verify that there is not redundant times listed for scheduled rate change
@@ -112,7 +112,7 @@ class DTLSimulProfile(SimulProfile):
 			if not getattr(self, attr): setattr(self, attr, DTLSimulProfile.dtypes[self.type][attr])
 		# particular metaparameter for tree length multiplier (emulates sequence diversity in gene family),
 		# which value can be set, but otherwise is not assumed to be related to the gene type
-		if not getattr(self, 'multreelen'): setattr(self, 'multreelen', ('gamma', 2, 0.5))
+		if (not hasattr(self, 'multreelen')) or (not getattr(self, 'multreelen')): setattr(self, 'multreelen', ('gamma', 2, 0.5))
 
 	
 class MetaSimulProfile(object):
@@ -230,7 +230,7 @@ class SimulLogger(object):
 		self.foutdict['undated_transfer_record']
 	
 		
-def annotateSpeciationLossEvents(trimLosses=False, **kw):
+def annotateSpeciationLossEvents(**kw):
 	"""takes an input tree and returns it annotated tree with SL events at speciation nodes which one child lineage ends with a loss event
 	
 	The input tree can be passed trhough kw argument 'extanttree' or this may be extracted from a simulation passed as kw argument 'simul'.
@@ -250,7 +250,9 @@ def annotateSpeciationLossEvents(trimLosses=False, **kw):
 		else:
 			# rosnode has no father <=> is root
 			headnode = rosnode
-			subheadnode = rosnode.get_children()[0]
+			subheadnodes = rosnode.get_children()
+			if subheadnodes: subheadnode = subheadnodes[0]
+			else: subheadnode = None
 		return (headnode, subheadnode)
 		
 	def trimlosses(headnode, subheadnode):
@@ -260,11 +262,15 @@ def annotateSpeciationLossEvents(trimLosses=False, **kw):
 			headnode, subheadnode = getheadnodes(headnode, removednodelabels=removednodelabels)
 			headnode.unlink_child(subheadnode)
 		return (headnode, subheadnode)
-		
-	simul = kw.get('simul')
-	extanttree = kw.get('extanttree', simul.extanttree)
-	if simul: llossnodes = kw.get('lossnodes', simul.extincts)
-	else: llossnodes = kw.get('lossnodes', extanttree.get_postordertraversal_children())
+	
+	trimLosses = kw.get('trimLosses', False)
+	simul = kw.get('simul')		
+	extanttree = kw.get('extanttree')
+	if extanttree is None: extanttree = simul.extanttree
+	llossnodes = kw.get('lossnodes')
+	if llossnodes is None: 
+		if simul: llossnodes = simul.extincts
+		else: llossnodes = extanttree.get_postordertraversal_children()
 	if trimLosses: removednodelabels = []
 	for node in llossnodes:
 		if node.label() in removednodelabels: continue
@@ -274,7 +280,7 @@ def annotateSpeciationLossEvents(trimLosses=False, **kw):
 			headnode, subheadnode = getheadnodes(node, removednodelabels=removednodelabels)
 			# tag the the lineage-head node with the SL event (same event id than the lineage-end loss event)
 			headnode.event = (nodev[0], 'speciationloss')
-			if trimLosses:
+			if trimLosses and not (subheadnode is None):
 				headnode, subheadnode = trimlosses(headnode, subheadnode)
 				if headnode.is_root():
 					# all lineages were ending by losses; tree is now void
