@@ -75,10 +75,10 @@ class BaseTreeSimulator(object):
 	                          are deactivated when noTrigger=True.
 	"""
 	
-	def __init__(self, model, **kwargs):
+	def __init__(self, **kwargs):
 		print 'invoke _BaseTreeSimulator__init__'
 		#~ print 'kwargs:', kwargs
-		self.model = model
+		self.model = kwargs.get('model')
 		self.t = 0
 		self.times = kwargs.get('times', [])
 		self.events = kwargs.get('events', {})
@@ -204,9 +204,16 @@ class BaseTreeSimulator(object):
 ################################################
 		
 class SingleTreeSimulator(BaseTreeSimulator):
-	def __init__(self, model, starttree=None, **kwargs):
-		super(SingleTreeSimulator, self).__init__(model=model, **kwargs)
-		self.tree = starttree or self.nodeClass(l=float(0), lab="Root")
+	def __init__(self, starttree=None, **kwargs):
+		self.profile = kwargs.get('profile', IOsimul.SimulProfile(modeltype='PartialMoranProcess'))
+		super(SingleTreeSimulator, self).__init__(**kwargs)
+		if not self.model:
+			# by default create a private model instance; these are better not shared between gene families 
+			# as their rates might have to be updated at different time points
+			self.model = eval('models.'+self.profile.modeltype)(**kwargs)
+		else:
+			raise ValueError, "must specify the model to simulate either through the 'profile' of the 'model' arguments"
+		self.tree = starttree or self.nodeClass(l=float(0), lab="Root", addAttr=self.nodeAttr)
 		
 		if not kwargs.get('noTrigger'):
 			self.checkdata()
@@ -324,15 +331,18 @@ class SingleTreeSimulator(BaseTreeSimulator):
 		return e
 	
 class MultipleTreeSimulator(BaseTreeSimulator):
-	def __init__(self, model=None, **kwargs):
+	def __init__(self, **kwargs):
 		print 'invoke _MultipleTreeSimulator__init__'
 		#~ print 'kwargs:', kwargs
-		super(MultipleTreeSimulator, self).__init__(model=model, **kwargs)
-		self.profile = kwargs.get('profile', IOsimul.SimulProfile())
-		if not self.model:
-			# by default create a private model instance; these are better not shared between gene families 
-			# as their rates might have to be updated at different time points
-			self.model = eval('models.'+self.profile.modeltype)(**kwargs)
+		self.profile = kwargs.get('profile', IOsimul.SimulProfile(modeltype='MoranProcess'))
+		super(MultipleTreeSimulator, self).__init__(**kwargs)
+		if self.model is None:
+			if getattr(self.profile, 'modeltype', False):
+				# by default create a private model instance; these are better not shared between gene families 
+				# as their rates might have to be updated at different time points
+				self.model = eval('models.'+self.profile.modeltype)(**kwargs)
+			else:
+				raise ValueError, "must specify a valid model type to simulate in the provided profile"
 		self.popsize = self.model.popsize
 		self.trees = [self.nodeClass(l=float(0), lab="Root_%d"%i, addAttr=self.nodeAttr) for i in range(self.popsize)]
 		
@@ -366,7 +376,10 @@ class MultipleTreeSimulator(BaseTreeSimulator):
 		"""generate a single list of all extant leaves across all trees in  the self.trees set"""
 		#~ sleave = set(sum((tree.get_leaves() for tree in self.trees), []))
 		#~ extants = list(sleave - set(self.extincts))
-		extants = sum(([leaf for leaf in self.tree.get_leaves() if not (leaf.extinct is True)] for tree in self.trees), [])
+		for leaf in self.trees[0].get_leaves():
+			if not 'extinct' in leaf.__dict__:
+				print leaf.__dict__
+		extants = sum(([leaf for leaf in tree.get_leaves() if not (leaf.extinct is True)] for tree in self.trees), [])
 		if depthsorted: extants.sort(key=lambda x: x.depth())
 		if isinstance(self.model, models.MoranProcess): assert len(extants) == self.popsize
 		return extants

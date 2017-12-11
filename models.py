@@ -343,7 +343,7 @@ class BirthDeathDTLModel(MultipleTreeModel):
 	T event is emmited at rate rtrans, and recipient is chose among the N contemporaneous branches.
 	Preserves extinct branches.
 	"""
-	def __init__(self, rdup=1e-4, rtrans=1e-4, rloss=1e-4, randomseed=None):
+	def __init__(self, rdup=1e-4, rtrans=1e-4, rloss=1e-4, randomseed=None, **kwargs):
 		print 'invoke models._BirthDeathDTLModel.__init__()'
 		super(BirthDeathDTLModel, self).__init__(randomseed=randomseed)
 		if rloss+rdup+rtrans > 1:
@@ -356,6 +356,7 @@ class BirthDeathDTLModel(MultipleTreeModel):
 		self.cumploss = rloss
 		self.cumpdupl = self.cumploss + rdup
 		self.cumptrans = self.cumpdupl + rtrans
+		print self.cumploss,  self.cumpdupl, self.cumptrans
 		
 	@staticmethod
 	def midTimesliceOnBranch(node, timeslice):
